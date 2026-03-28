@@ -23,6 +23,8 @@ NextRound is a local-first job search command center for the small set of opport
 - Notes per job
 - Archive reasons and closeout detail
 - Local persistence so the app keeps data between sessions on the same machine
+- Per-application history timeline
+- First-pass Journey Map view for stage flow and stuck-point visibility
 
 ## Core Data To Track
 - Company
@@ -63,6 +65,7 @@ Structured reasons to support pattern analysis:
 - Company page with all interactions and notes
 - Duplicate detection for role + company combos
 - Contact history log
+- Visual career map / job history map showing companies, roles, outcomes, interview depth, and follow-up history over time
 - Reminders center
 - Resume version attached to each application
 - Research panel for job description, company info, and interviewer notes
@@ -97,6 +100,42 @@ Structured reasons to support pattern analysis:
 - Dashboard should surface urgency
 - Should feel simple enough to use while actively job searching
 - Mobile-friendly layout is important even if desktop is the main use case
+- Visual history views should feel meaningful and strategic, not like a novelty chart
+
+## Visual History Concept
+- Add a visual map view showing the full history of companies, roles, stages reached, and outcomes
+- Support two possible modes:
+- `Journey view`: a timeline of applications showing how far each role advanced, from applied to interviews to archive or offer
+- `Relationship view`: a node-style map connecting companies, roles, sources, and outcomes so patterns are easy to spot
+- Use this as a long-term memory system even after the user lands a job
+- Help answer questions like:
+- Where have I already applied
+- Which companies have responded before
+- Which sources convert best for me
+- Which interview stages do I usually reach
+- Where should I re-apply later and where should I not
+
+## Idea backlog
+- Command-center dashboard with premium styling, focus cards, and quick access to the roles that matter.
+- Quick add capture plus a table-style log to keep pace with mass applications while still tracking the favorites.
+- Needs-attention flags for opportunities that have stalled for 7+ days or have follow-ups due soon.
+- Stage selectors, next-stage buttons, and archive-reason tracking to log why an application closed.
+- Mind-map-style history so you can see every company, job, and outcome when you revisit the project.
+- Reminder / prep automations (idle follow-ups, prep checklists, follow-up prompts) to keep momentum.
+- Snapshot stats for active roles, interviews in play, follow-ups due, and offers/decisions.
+- Store every idea, automation, and UI exploration in this file so we never lose the backlog.
+
+## Project plan
+### Built
+- Premium command center with hero, metrics, and quick view cards.
+- Quick-add capture and application log with filters, stage controls, and CSV export.
+- Pipeline board, journey map, and detailed workspace for each tracked role.
+- Archive view with rejection/closeout reasons plus local persistence.
+
+### Next
+- Build the mind-map / relationship view that shows career history and where each company landed.
+- Add reminder automations (idle follow-up flags, prep prompts, follow-up scheduling helpers).
+- Explore calendar/email sync and desktop packaging once the data model stabilizes.
 
 ## Open Questions
 - Should tracked jobs support multiple interview events per company in v2

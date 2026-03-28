@@ -3,13 +3,13 @@
 NextRound is a local-first job search command center for the applications worth caring about. It helps you track follow-ups, interviews, prep status, and archived outcomes without forcing you to live in a spreadsheet.
 
 ## Current V1 Features
-- Premium dashboard with at-a-glance stats
-- Quick-add flow for high-signal jobs
-- Tracked jobs view with stage, prep status, and notes
-- Interviews view for round, time, recruiter, and prep tracking
-- Archive view with rejection / closeout reasons
-- Local storage persistence in the browser
-- Single project memory file at `docs/master-roadmap.md`
+- Premium command center with stats, quick-view focus cards, and premium hero copy.
+- Quick-add capture plus a table-style application log with filtering, search, and CSV export.
+- Interactive log rows so you can change stages, jump to details, and advance the next step immediately.
+- Pipeline board + journey map for visualizing where every tracked job sits in the flow.
+- Detail workspace for prep status, interview scheduling, notes, and archive reasons tied to rejection context.
+- Archive, idea backlog, and project roadmap all captured in `docs/master-roadmap.md`.
+- Local storage persistence in the browser.
 
 ## Run Locally
 ```bash
