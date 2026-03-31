@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
@@ -23,7 +23,7 @@ type Stage =
   | 'Offer declined'
   | 'Archived'
 
-type View = 'dashboard' | 'pipeline' | 'interviews' | 'journey' | 'archive' | 'roadmap'
+type View = 'dashboard' | 'tracker' | 'pipeline' | 'interviews' | 'archive'
 
 type HistoryType =
   | 'Applied'
@@ -123,82 +123,42 @@ const sampleApplications: Application[] = [
     stage: 'Waiting on response',
     priority: 'High',
     fitScore: 94,
-    salary: '$70k – $90k',
+    salary: '$70k - $90k',
     workStyle: 'Remote-friendly',
     recruiter: 'Erin / Elsie',
-    interviewDate: '2026-03-24T10:00',
-    interviewStage: 'Completed 2nd Interview · third round pending',
+    interviewDate: '2026-04-02T10:00',
+    interviewStage: '3rd round pending',
     prepStatus: 'Ready',
-    notes:
-      'Second interview with Erin covered enrollment operations, referral handoffs, and supporting the enrollment team as the operations lead. Erin knows I am flexible and that they are my top choice; Elsie is coordinating the next conversation.',
+    notes: 'Strong fit. Keep top priority and follow up if no update by follow-up date.',
     archiveReason: '',
     archiveDetail: '',
     history: [
-      createHistoryEntry(
-        'Applied via LinkedIn',
-        'Referral-powered intake leadership role for therapy enrollment and operations support.',
-        'Applied',
-        '2026-03-15',
-      ),
-      createHistoryEntry(
-        'Completed 1st interview',
-        'Reviewed enrollment workflows, referral to therapy, and how to balance ops with leadership.',
-        'Interview',
-        '2026-03-22',
-      ),
-      createHistoryEntry(
-        'Completed 2nd interview',
-        'Shared timeline flexibility, leadership philosophy, and why this is the top choice.',
-        'Interview',
-        '2026-03-24',
-      ),
-      createHistoryEntry(
-        'Waiting on response',
-        'Erin is coordinating a call with Elsie; I confirmed availability and mentioned they remain my priority.',
-        'Waiting on response',
-        '2026-03-25',
-      ),
+      createHistoryEntry('Applied via LinkedIn', 'Submitted profile and resume.', 'Applied', '2026-03-15'),
+      createHistoryEntry('Completed 2nd interview', 'Leadership and operations deep dive.', 'Interview', '2026-03-24'),
     ],
   },
   {
     id: 2,
     company: 'InsightTech',
     role: 'Patient Engagement Specialist',
-    source: 'Company site',
+    source: 'Company Site',
     appliedOn: '2026-03-18',
     followUpOn: '2026-04-03',
-    stage: 'Waiting on response',
+    stage: 'Scheduled 2nd Interview',
     priority: 'High',
     fitScore: 88,
-    salary: '$65k – $78k',
+    salary: '$65k - $78k',
     workStyle: 'Hybrid',
     recruiter: 'Lena',
-    interviewDate: '',
-    interviewStage: 'Round 2 penciled in; follow-up 4/3 if no update',
+    interviewDate: '2026-04-04T13:00',
+    interviewStage: '2nd round scheduled',
     prepStatus: 'Light prep',
-    notes:
-      'Round 1 showcased non-invasive MRI tech for Parkinson’s and tremor referrals, and how I coach families through the conversation. Lena asked me to reach back on 4/3 if I do not hear anything.',
+    notes: 'Round 1 completed. Prep technical talking points and referral flow examples.',
     archiveReason: '',
     archiveDetail: '',
     history: [
-      createHistoryEntry(
-        'Applied via InsightTech portal',
-        'Patient engagement role supporting MRI-based Parkinson’s and tremor referrals.',
-        'Applied',
-        '2026-03-18',
-      ),
-      createHistoryEntry(
-        'Completed 1st interview',
-        'Talked tech, doctor relationships, and how I guide families through the process.',
-        'Interview',
-        '2026-03-23',
-      ),
-      createHistoryEntry(
-        'Waiting on response',
-        'Lena said round two is likely in a week and I should check back on 4/3 if silent.',
-        'Waiting on response',
-        '2026-03-24',
-      ),
+      createHistoryEntry('Applied on company site', 'Submitted directly from careers page.', 'Applied', '2026-03-18'),
+      createHistoryEntry('Round 2 scheduled', 'Invite received from recruiter.', 'Interview', '2026-03-29'),
     ],
   },
 ]
@@ -211,6 +171,66 @@ const quickAddDefaults: QuickAddForm = {
   appliedOn: getTodayIso(),
 }
 
+/* ─── SVG Nav Icons ─────────────────────────────── */
+function DashboardIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="1" y="1" width="5.5" height="5.5" rx="1.2" fill="currentColor"/>
+      <rect x="8.5" y="1" width="5.5" height="5.5" rx="1.2" fill="currentColor"/>
+      <rect x="1" y="8.5" width="5.5" height="5.5" rx="1.2" fill="currentColor"/>
+      <rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1.2" fill="currentColor"/>
+    </svg>
+  )
+}
+
+function TrackerIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="1" y="2.5" width="13" height="1.8" rx="0.9" fill="currentColor"/>
+      <rect x="1" y="6.6" width="13" height="1.8" rx="0.9" fill="currentColor"/>
+      <rect x="1" y="10.7" width="13" height="1.8" rx="0.9" fill="currentColor"/>
+    </svg>
+  )
+}
+
+function PipelineIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="1" y="2" width="3.5" height="11" rx="1" fill="currentColor"/>
+      <rect x="5.75" y="4" width="3.5" height="9" rx="1" fill="currentColor"/>
+      <rect x="10.5" y="6" width="3.5" height="7" rx="1" fill="currentColor"/>
+    </svg>
+  )
+}
+
+function InterviewsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M7.5 4.5V7.5L9.5 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function ArchiveIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="1" y="2" width="13" height="2.8" rx="1" fill="currentColor"/>
+      <path d="M2.5 4.8V12a1 1 0 001 1h8a1 1 0 001-1V4.8" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M5.5 8.5h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+const navIcons: Record<View, () => React.ReactElement> = {
+  dashboard: DashboardIcon,
+  tracker: TrackerIcon,
+  pipeline: PipelineIcon,
+  interviews: InterviewsIcon,
+  archive: ArchiveIcon,
+}
+
+/* ─── App ───────────────────────────────────────── */
 function App() {
   const [applications, setApplications] = useState<Application[]>(() => {
     if (typeof window === 'undefined') return sampleApplications
@@ -218,101 +238,76 @@ function App() {
     if (!saved) return sampleApplications
     return JSON.parse(saved) as Application[]
   })
-  const [selectedId, setSelectedId] = useState<number>(() => applications[0]?.id ?? sampleApplications[0].id)
+  const [activeView, setActiveView] = useState<View>('dashboard')
+  const [selectedId, setSelectedId] = useState<number>(() => sampleApplications[0].id)
   const [searchTerm, setSearchTerm] = useState('')
   const [stageFilter, setStageFilter] = useState<'All' | Stage>('All')
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [quickAddForm, setQuickAddForm] = useState<QuickAddForm>(quickAddDefaults)
-  const [activeView, setActiveView] = useState<View>('dashboard')
-  const [showPipelineBoard, setShowPipelineBoard] = useState(false)
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(applications))
   }, [applications])
 
   useEffect(() => {
-    if (!applications.length) {
-      setSelectedId(0)
-      return
-    }
-    if (!applications.some((application) => application.id === selectedId)) {
+    if (!applications.length) return
+    if (!applications.some((a) => a.id === selectedId)) {
       setSelectedId(applications[0].id)
     }
   }, [applications, selectedId])
 
-  const activeApplications = applications.filter((application) => application.stage !== 'Archived')
-  const archivedApplications = applications.filter((application) => application.stage === 'Archived')
-  const followUpsDue = activeApplications.filter((application) => isDue(application.followUpOn))
-  const stalledApplications = activeApplications.filter((application) => isStalled(application))
-  const selectedApplication = applications.find((application) => application.id === selectedId) ?? applications[0] ?? null
+  const activeApplications = applications.filter((a) => a.stage !== 'Archived')
+  const archivedApplications = applications.filter((a) => a.stage === 'Archived')
+  const selectedApplication = applications.find((a) => a.id === selectedId) ?? applications[0] ?? null
+  const upcomingInterviews = activeApplications
+    .filter((a) => a.interviewDate)
+    .sort((a, b) => new Date(a.interviewDate).getTime() - new Date(b.interviewDate).getTime())
+  const needsAttention = activeApplications.filter((a) => isStalled(a) || isDue(a.followUpOn))
+  const interviewingCount = activeApplications.filter((a) =>
+    a.stage.includes('Interview') || a.stage === 'Recruiter Screen',
+  ).length
 
-  const filteredCollection = useMemo(() => {
-    return applications
-      .filter((application) => application.stage !== 'Archived')
-      .filter((application) => {
-        const matchesStage = stageFilter === 'All' || application.stage === stageFilter
+  const filteredTracker = useMemo(
+    () =>
+      activeApplications.filter((a) => {
+        const byStage = stageFilter === 'All' || a.stage === stageFilter
         const term = searchTerm.trim().toLowerCase()
-        const matchesSearch =
+        const byText =
           !term ||
-          [application.company, application.role, application.source, application.notes]
-            .join(' ')
-            .toLowerCase()
-            .includes(term)
-        return matchesStage && matchesSearch
-      })
-  }, [applications, searchTerm, stageFilter])
-
-  const summaryStats = useMemo(
-    () => [
-      { label: 'Tracked roles', value: activeApplications.length },
-      {
-        label: 'Interviews in play',
-        value: activeApplications.filter((application) => stepHasInterview(application.stage)).length,
-      },
-      { label: 'Awaiting replies', value: followUpsDue.length },
-      {
-        label: 'Offers & decisions',
-        value: applications.filter((application) =>
-          ['Offer made', 'Offer accepted', 'Offer declined'].includes(application.stage),
-        ).length,
-      },
-    ],
-    [activeApplications, followUpsDue.length, applications],
+          [a.company, a.role, a.source, a.notes].join(' ').toLowerCase().includes(term)
+        return byStage && byText
+      }),
+    [activeApplications, searchTerm, stageFilter],
   )
 
-  const quickViewList = useMemo(
-    () =>
-      [...activeApplications]
-        .sort(
-          (a, b) =>
-            new Date(a.followUpOn).getTime() - new Date(b.followUpOn).getTime() ||
-            new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime(),
-        )
-        .slice(0, 4),
-    [activeApplications],
-  )
-
-  const stageSummary = useMemo(
-    () =>
-      stageOptions.map((stage) => ({
-        stage,
-        count: applications.filter((application) => application.stage === stage).length,
-      })),
-    [applications],
-  )
-  const activeStageSummary = stageSummary.filter((entry) => entry.count > 0 && entry.stage !== 'Archived')
+  const pipelineBuckets: Array<{ title: string; stages: Stage[] }> = [
+    { title: 'Applied', stages: ['Saved', 'Application Submitted', 'Follow-Up 1', 'Follow-Up 2', 'Waiting on response'] },
+    {
+      title: 'Interviewing',
+      stages: [
+        'Recruiter Screen',
+        'Scheduled 1st Interview',
+        'Completed 1st Interview',
+        'Scheduled 2nd Interview',
+        'Completed 2nd Interview',
+        'Scheduled 3rd Interview',
+        'Completed 3rd Interview',
+        'Scheduled 4th Interview',
+        'Completed 4th Interview',
+      ],
+    },
+    { title: 'Decision', stages: ['Offer made', 'Offer accepted', 'Offer declined', 'No response'] },
+  ]
 
   function updateApplication(id: number, changes: Partial<Application>) {
-    setApplications((current) =>
-      current.map((application) => (application.id === id ? { ...application, ...changes } : application)),
+    setApplications((curr) =>
+      curr.map((a) => (a.id === id ? { ...a, ...changes } : a)),
     )
   }
 
   function appendHistory(id: number, entry: HistoryEntry) {
-    setApplications((current) =>
-      current.map((application) =>
-        application.id === id ? { ...application, history: [entry, ...application.history] } : application,
-      ),
+    setApplications((curr) =>
+      curr.map((a) => (a.id === id ? { ...a, history: [entry, ...a.history] } : a)),
     )
   }
 
@@ -326,82 +321,16 @@ function App() {
       application.id,
       createHistoryEntry(
         `Moved to ${nextStage}`,
-        `Stage updated from ${application.stage} to ${nextStage}.`,
+        `Stage changed from ${application.stage} to ${nextStage}.`,
         nextStage === 'Archived' ? 'Archive' : 'Status',
       ),
     )
   }
 
-  function markFollowUpSent(application: Application) {
-    const nextStage =
-      application.stage === 'Application Submitted'
-        ? 'Follow-Up 1'
-        : application.stage === 'Follow-Up 1'
-        ? 'Follow-Up 2'
-        : application.stage
-    updateApplication(application.id, {
-      followUpOn: addDays(getTodayIso(), 5),
-      stage: nextStage,
-    })
-    appendHistory(
-      application.id,
-      createHistoryEntry('Follow-up sent', 'Logged outreach and bumped the next checkpoint.', 'Follow-up'),
-    )
-  }
-
-  function markPrepReady(application: Application) {
-    updateApplication(application.id, { prepStatus: 'Ready' })
-    appendHistory(application.id, createHistoryEntry('Prep marked ready', 'Ready for the next conversation.', 'Prep'))
-  }
-
-  function exportToCSV() {
-    const headings = ['Company', 'Role', 'Stage', 'Follow Up', 'Salary', 'Last History']
-    const rows = applications.map((application) => [
-      application.company,
-      application.role,
-      application.stage,
-      application.followUpOn,
-      application.salary,
-      application.history[0]?.date ?? '',
-    ])
-    const csv = [headings, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = 'nextround-applications.csv'
-    link.click()
-  }
-
-  function scheduleNextRound(application: Application) {
-    const nextStage = getNextStage(application.stage)
-    if (nextStage === application.stage) return
-    const interviewDate = application.interviewDate || `${addDays(getTodayIso(), 2)}T11:00`
-    updateApplication(application.id, { stage: nextStage, interviewStage: nextStage, interviewDate })
-    appendHistory(
-      application.id,
-      createHistoryEntry(
-        `${nextStage} scheduled`,
-        `Set next interview for ${formatDateTime(interviewDate)}.`,
-        'Interview',
-      ),
-    )
-  }
-
-  function deleteApplication(id: number) {
-    setApplications((current) => current.filter((application) => application.id !== id))
-    if (selectedId === id) {
-      const next = applications.find((application) => application.id !== id)
-      if (next) setSelectedId(next.id)
-    }
-  }
-
-  function openApplication(id: number) {
-    setSelectedId(id)
-  }
-
-function handleQuickAdd(event: FormEvent<HTMLFormElement>) {
+  function handleQuickAdd(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!quickAddForm.company.trim() || !quickAddForm.role.trim()) return
+
     const newApp: Application = {
       id: Date.now(),
       company: quickAddForm.company.trim(),
@@ -418,577 +347,499 @@ function handleQuickAdd(event: FormEvent<HTMLFormElement>) {
       interviewDate: '',
       interviewStage: 'No interview yet',
       prepStatus: 'Not started',
-      notes: 'Quick entry captured during application session.',
+      notes: '',
       archiveReason: '',
       archiveDetail: '',
       history: [
-        createHistoryEntry('Quick add', 'Captured essential details fast.', 'Applied', quickAddForm.appliedOn),
+        createHistoryEntry('Quick add', 'Created from dashboard quick add.', 'Applied', quickAddForm.appliedOn),
       ],
     }
-    setApplications((current) => [newApp, ...current])
+
+    setApplications((curr) => [newApp, ...curr])
     setSelectedId(newApp.id)
     setQuickAddForm(quickAddDefaults)
+    setQuickAddOpen(false)
+    setActiveView('tracker')
+  }
+
+  function deleteApplication(id: number) {
+    setApplications((curr) => curr.filter((a) => a.id !== id))
+  }
+
+  function exportToCSV() {
+    const headers = ['Company', 'Role', 'Stage', 'Follow Up', 'Interview Date', 'Source', 'Salary']
+    const rows = applications.map((a) => [
+      a.company, a.role, a.stage, a.followUpOn, a.interviewDate, a.source, a.salary,
+    ])
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'nextround-export.csv'
+    link.click()
   }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand-block">
-          <p className="eyebrow eyebrow-bright">Job search command center</p>
-          <h1>NextRound</h1>
-          <p className="brand-copy">Premium CRM for the opportunities you truly care about.</p>
+    <div className="app-shell">
+      {/* ── Sidebar ── */}
+      <aside className="left-nav">
+        <div className="brand">
+          <p className="brand-kicker">NextRound</p>
+          <h1>CRM Tracker</h1>
+          <p>Track every opportunity and follow-up.</p>
         </div>
-        <div className="sidebar-highlight">
-          <p className="section-label section-label-bright">Live pipeline</p>
-          <strong>{activeApplications.length} active roles</strong>
-          <span>{stalledApplications.length} flagged for attention</span>
-          <span>
-            {followUpsDue.length} follow-ups due · {archivedApplications.length} archived
-          </span>
+
+        {/* Compact metrics */}
+        <div className="nav-metrics">
+          <article>
+            <span>Active</span>
+            <strong>{activeApplications.length}</strong>
+          </article>
+          <article>
+            <span>Interviewing</span>
+            <strong>{interviewingCount}</strong>
+          </article>
+          <article>
+            <span>Attention</span>
+            <strong>{needsAttention.length}</strong>
+          </article>
+          <article>
+            <span>Archived</span>
+            <strong>{archivedApplications.length}</strong>
+          </article>
         </div>
-        <nav className="nav-list" aria-label="Main sections">
-          {['dashboard', 'pipeline', 'interviews', 'journey', 'archive', 'roadmap'].map((id) => (
-            <button
-              key={id}
-              className={activeView === id ? 'nav-item active' : 'nav-item'}
-              onClick={() => setActiveView(id as View)}
-            >
-              <span>{id}</span>
-            </button>
-          ))}
+
+        {/* Navigation */}
+        <nav className="main-nav">
+          {(['dashboard', 'tracker', 'pipeline', 'interviews', 'archive'] as View[]).map((view) => {
+            const Icon = navIcons[view]
+            return (
+              <button
+                key={view}
+                className={activeView === view ? 'nav-link active' : 'nav-link'}
+                onClick={() => setActiveView(view)}
+              >
+                <Icon />
+                {view}
+              </button>
+            )
+          })}
         </nav>
       </aside>
 
+      {/* ── Main workspace ── */}
       <main className="workspace">
-        <div className="command-header">
+        <header className="workspace-header">
           <div>
-            <p className="eyebrow">Command center</p>
-            <h2>NextRound · premium pipeline</h2>
-            <p className="hero-copy">
-              Capture the essentials quickly, track every stage, and keep your focus on the roles that
-              deserve follow-up.
-            </p>
+            <h2>{viewTitle(activeView)}</h2>
+            <p>{viewSubtitle(activeView)}</p>
           </div>
-          <div className="command-actions">
-            <button className="ghost-button" onClick={() => setActiveView('journey')}>
-              View journey map
+          <div className="header-actions">
+            <button className="ghost-button" onClick={exportToCSV}>
+              Export CSV
             </button>
-            <button className="primary-button" onClick={() => setQuickAddOpen(true)}>
-              Quick add role
+            <button className="primary-button" onClick={() => setQuickAddOpen((v) => !v)}>
+              + Quick add
             </button>
           </div>
-        </div>
+        </header>
 
-        <div className="command-metrics">
-          {summaryStats.map((stat) => (
-            <MetricCard key={stat.label} label={stat.label} value={stat.value} />
-          ))}
-        </div>
-
-        <section className="dashboard-grid">
-          <div className="quick-add-card card">
-            <div className="card-header">
-              <div>
-                <p className="section-label">Quick add</p>
-                <h3>Capture roles while they are fresh</h3>
-              </div>
-              <button className="ghost-button" onClick={() => setQuickAddOpen((prev) => !prev)}>
-                {quickAddOpen ? 'Hide quick add' : 'Quick capture'}
-              </button>
-            </div>
-            <form className={`quick-add-form ${quickAddOpen ? 'is-expanded' : ''}`} onSubmit={handleQuickAdd}>
-              <label>
-                <span>Company</span>
-                <input
-                  value={quickAddForm.company}
-                  onChange={(event) =>
-                    setQuickAddForm((current) => ({ ...current, company: event.target.value }))
-                  }
-                />
-              </label>
-              <label>
-                <span>Role</span>
-                <input
-                  value={quickAddForm.role}
-                  onChange={(event) =>
-                    setQuickAddForm((current) => ({ ...current, role: event.target.value }))
-                  }
-                />
-              </label>
-              <label>
-                <span>Platform</span>
-                <select
-                  value={quickAddForm.source}
-                  onChange={(event) =>
-                    setQuickAddForm((current) => ({ ...current, source: event.target.value }))
-                  }
-                >
-                  <option>LinkedIn</option>
-                  <option>Company Site</option>
-                  <option>Referral</option>
-                  <option>Indeed</option>
-                  <option>Other</option>
-                </select>
-              </label>
-              <label>
-                <span>Pay range</span>
-                <input
-                  value={quickAddForm.salary}
-                  onChange={(event) =>
-                    setQuickAddForm((current) => ({ ...current, salary: event.target.value }))
-                  }
-                />
-              </label>
-              <label>
-                <span>Applied on</span>
-                <input
-                  type="date"
-                  value={quickAddForm.appliedOn}
-                  onChange={(event) =>
-                    setQuickAddForm((current) => ({ ...current, appliedOn: event.target.value }))
-                  }
-                />
-              </label>
-              <div className="quick-add-footer">
-                <button type="submit" className="primary-button">
-                  Capture quick entry
-                </button>
-                <span className="muted">{applicationCountText(filteredCollection.length)}</span>
-              </div>
-            </form>
-          </div>
-
-          <div className="quick-view-card card">
-          <div className="card-header">
-            <div>
-              <h3>Active attention</h3>
-            </div>
-            <span className="muted">{followUpsDue.length} follow-ups flagged</span>
-          </div>
-            <div className="quick-view-list">
-              {quickViewList.map((application) => (
-                <article key={application.id} className="quick-view-item">
-                  <div>
-                    <strong>{application.company}</strong>
-                    <p>{application.role}</p>
-                    <p className="quick-view-meta">{application.source}</p>
-                  </div>
-                  <div className="quick-view-meta">
-                    <StageBadge stage={application.stage} attention={isStalled(application)} />
-                    <span>{formatFollowUpLabel(application)}</span>
-                  </div>
-                  <button className="ghost-button" onClick={() => openApplication(application.id)}>
-                    Details
-                  </button>
-                </article>
-              ))}
-            </div>
-            <div className="quick-view-footer">
-              <button className="secondary-button" onClick={() => setActiveView('pipeline')}>
-                Jump to pipeline
-              </button>
-              <button className="ghost-button" onClick={() => setActiveView('archive')}>
-                View archive
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="log-panel card">
-          <div className="log-header">
-            <div>
-              <h3>Application log</h3>
-            </div>
-            <div className="log-controls">
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search jobs, companies, or notes..."
-              />
-              <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value as 'All' | Stage)}>
-                <option>All</option>
-                {stageOptions.map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
-              <button className="ghost-button" onClick={exportToCSV}>
-                Export CSV
-              </button>
-            </div>
-          </div>
-          <div className="log-table">
-            <div className="log-row log-heading">
-              <span>Company · role</span>
-              <span>Stage</span>
-              <span>Platform</span>
-              <span>Follow-up</span>
-              <span>Interview</span>
-              <span>Actions</span>
-            </div>
-            {filteredCollection.map((application) => (
-              <div
-                key={application.id}
-                className={`log-row ${isStalled(application) ? 'stalled' : ''}`}
-                onClick={() => openApplication(application.id)}
-              >
-                <div className="log-cell company-cell">
-                  <strong>{application.company}</strong>
-                  <p className="muted">{application.role}</p>
-                </div>
-                <div className="log-cell stage-cell">
-                  <StageBadge stage={application.stage} attention={isStalled(application)} />
+        {/* ── Quick add slide-in panel ── */}
+        {quickAddOpen && (
+          <>
+            <div className="quick-add-overlay" onClick={() => setQuickAddOpen(false)} />
+            <div className="quick-add-panel">
+              <h3>Add a role</h3>
+              <form className="quick-add-form" onSubmit={handleQuickAdd}>
+                <label>
+                  Company
+                  <input
+                    autoFocus
+                    value={quickAddForm.company}
+                    onChange={(e) => setQuickAddForm((f) => ({ ...f, company: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Role
+                  <input
+                    value={quickAddForm.role}
+                    onChange={(e) => setQuickAddForm((f) => ({ ...f, role: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Platform
                   <select
-                    value={application.stage}
-                    onClick={(event) => event.stopPropagation()}
-                    onChange={(event) => handleStageChange(application, event.target.value as Stage)}
+                    value={quickAddForm.source}
+                    onChange={(e) => setQuickAddForm((f) => ({ ...f, source: e.target.value }))}
                   >
-                    {stageOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
+                    <option>LinkedIn</option>
+                    <option>Company Site</option>
+                    <option>Referral</option>
+                    <option>Indeed</option>
+                    <option>Other</option>
                   </select>
+                </label>
+                <label>
+                  Pay range
+                  <input
+                    value={quickAddForm.salary}
+                    placeholder="e.g. $70k–$90k"
+                    onChange={(e) => setQuickAddForm((f) => ({ ...f, salary: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Applied on
+                  <input
+                    type="date"
+                    value={quickAddForm.appliedOn}
+                    onChange={(e) => setQuickAddForm((f) => ({ ...f, appliedOn: e.target.value }))}
+                  />
+                </label>
+                <button type="submit" className="primary-button full-width">
+                  Add role
+                </button>
+              </form>
+            </div>
+          </>
+        )}
+
+        {/* ── Dashboard ── */}
+        {activeView === 'dashboard' && (
+          <section className="dashboard-grid">
+            <article className="panel-card">
+              <h3>Needs attention</h3>
+              <div className="list-stack">
+                {needsAttention.length ? (
+                  needsAttention.slice(0, 6).map((a) => (
+                    <button
+                      key={a.id}
+                      className="list-item"
+                      onClick={() => { setSelectedId(a.id); setActiveView('tracker') }}
+                    >
+                      <div>
+                        <strong>{a.company}</strong>
+                        <p>{a.role}</p>
+                      </div>
+                      <span>{formatFollowUp(a.followUpOn)}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="empty">No urgent follow-ups right now.</p>
+                )}
+              </div>
+            </article>
+
+            <article className="panel-card">
+              <h3>Upcoming interviews</h3>
+              <div className="list-stack">
+                {upcomingInterviews.length ? (
+                  upcomingInterviews.slice(0, 6).map((a) => (
+                    <button
+                      key={a.id}
+                      className="list-item"
+                      onClick={() => { setSelectedId(a.id); setActiveView('interviews') }}
+                    >
+                      <div>
+                        <strong>{a.company}</strong>
+                        <p>{a.role}</p>
+                      </div>
+                      <span>{formatDateTime(a.interviewDate)}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="empty">No interviews scheduled.</p>
+                )}
+              </div>
+            </article>
+          </section>
+        )}
+
+        {/* ── Tracker (main job board) ── */}
+        {activeView === 'tracker' && (
+          <section className="tracker-layout">
+            <article className="panel-card tracker-table-wrap">
+              <div className="tracker-toolbar">
+                <input
+                  placeholder="Search company, role, notes…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <select
+                  value={stageFilter}
+                  onChange={(e) => setStageFilter(e.target.value as 'All' | Stage)}
+                >
+                  <option>All</option>
+                  {stageOptions.filter((s) => s !== 'Archived').map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="tracker-table">
+                <div className="tracker-head">
+                  <span>Company / Role</span>
+                  <span>Stage</span>
+                  <span>Priority</span>
+                  <span>Follow-up</span>
+                  <span>Interview</span>
                 </div>
-                <div className="log-cell">
-                  {application.source}
-                  <p className="muted">{application.salary}</p>
+                {filteredTracker.map((a) => (
+                  <button
+                    key={a.id}
+                    className={a.id === selectedId ? 'tracker-row active' : 'tracker-row'}
+                    onClick={() => setSelectedId(a.id)}
+                  >
+                    <div>
+                      <strong>{a.company}</strong>
+                      <p>{a.role}</p>
+                    </div>
+                    {/* Clickable stage pill — click to change directly in the table */}
+                    <div className="stage-pill-wrap">
+                      <span className={`stage-pill ${stageTone(a.stage)}`}>{a.stage}</span>
+                      <select
+                        className="stage-pill-select"
+                        value={a.stage}
+                        title="Change stage"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          handleStageChange(a, e.target.value as Stage)
+                        }}
+                      >
+                        {stageOptions.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <span>
+                      <span className={`priority-badge priority-${a.priority.toLowerCase()}`}>
+                        {a.priority}
+                      </span>
+                    </span>
+                    <span>{formatFollowUp(a.followUpOn)}</span>
+                    <span>{a.interviewDate ? formatDateTime(a.interviewDate) : '—'}</span>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            {/* Detail panel */}
+            {selectedApplication && (
+              <article className="panel-card detail-panel">
+                <div className="detail-title">
+                  <div>
+                    <h3>{selectedApplication.company}</h3>
+                    <p>{selectedApplication.role}</p>
+                  </div>
+                  <span className={`stage-pill ${stageTone(selectedApplication.stage)}`}>
+                    {selectedApplication.stage}
+                  </span>
                 </div>
-                <div className="log-cell">
-                  <strong>{formatFollowUpLabel(application)}</strong>
-                  <p className="muted">{formatDate(application.followUpOn)}</p>
+
+                <div className="detail-grid">
+                  <label>
+                    Stage
+                    <select
+                      value={selectedApplication.stage}
+                      onChange={(e) => handleStageChange(selectedApplication, e.target.value as Stage)}
+                    >
+                      {stageOptions.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Follow-up date
+                    <input
+                      type="date"
+                      value={selectedApplication.followUpOn}
+                      onChange={(e) => updateApplication(selectedApplication.id, { followUpOn: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Interview date
+                    <input
+                      type="datetime-local"
+                      value={selectedApplication.interviewDate}
+                      onChange={(e) => updateApplication(selectedApplication.id, { interviewDate: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Prep status
+                    <select
+                      value={selectedApplication.prepStatus}
+                      onChange={(e) =>
+                        updateApplication(selectedApplication.id, {
+                          prepStatus: e.target.value as Application['prepStatus'],
+                        })
+                      }
+                    >
+                      <option>Not started</option>
+                      <option>Light prep</option>
+                      <option>Ready</option>
+                    </select>
+                  </label>
                 </div>
-                <div className="log-cell">
-                  <strong>{formatInterviewLabel(application)}</strong>
-                  <p className="muted">{application.interviewStage}</p>
-                </div>
-                <div className="log-cell actions-cell">
+
+                <label className="notes-field">
+                  Notes
+                  <textarea
+                    value={selectedApplication.notes}
+                    onChange={(e) => updateApplication(selectedApplication.id, { notes: e.target.value })}
+                  />
+                </label>
+
+                {selectedApplication.stage === 'Archived' && (
+                  <div className="detail-grid">
+                    <label>
+                      Archive reason
+                      <select
+                        value={selectedApplication.archiveReason}
+                        onChange={(e) =>
+                          updateApplication(selectedApplication.id, { archiveReason: e.target.value })
+                        }
+                      >
+                        <option value="">Select reason</option>
+                        {archiveReasons.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Archive detail
+                      <input
+                        value={selectedApplication.archiveDetail}
+                        onChange={(e) =>
+                          updateApplication(selectedApplication.id, { archiveDetail: e.target.value })
+                        }
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <div className="detail-actions">
                   <button
                     className="ghost-button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openApplication(application.id)
-                    }}
-                  >
-                    Details
-                  </button>
-                  <button
-                    className="secondary-button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      scheduleNextRound(application)
-                    }}
+                    onClick={() => handleStageChange(selectedApplication, getNextStage(selectedApplication.stage))}
                   >
                     Next stage
                   </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="pipeline-summary card">
-          <div className="card-header">
-            <div>
-              <h3>Pipeline overview</h3>
-              <p className="muted">Keep the board tucked until you need to peek at every stage.</p>
-            </div>
-            <button className="ghost-button" onClick={() => setShowPipelineBoard((prev) => !prev)}>
-              {showPipelineBoard ? 'Hide board' : 'Show board'}
-            </button>
-          </div>
-          <div className="stage-list">
-            {activeStageSummary.slice(0, 5).map((entry) => (
-              <div key={entry.stage} className="stage-chip">
-                <StageBadge
-                  stage={entry.stage}
-                  attention={isStalled(
-                    applications.find((application) => application.stage === entry.stage) ?? applications[0],
-                  )}
-                />
-                <span>{entry.count}</span>
-              </div>
-            ))}
-            {activeStageSummary.length > 5 && <span className="muted">+{activeStageSummary.length - 5} more stages</span>}
-          </div>
-        </section>
-
-        {showPipelineBoard && (
-          <section className="pipeline-board card">
-            <div className="card-heading">
-              <div>
-                <h3>Stage breakdown</h3>
-              </div>
-              <p className="muted">Click a stage to jump straight into any detail view.</p>
-            </div>
-            <div className="journey-columns compressed">
-              {stageOptions.map((stage) => {
-                const stageApps = applications.filter((app) => app.stage === stage)
-                if (!stageApps.length) return null
-                return (
-                  <div key={stage} className="journey-column">
-                    <strong>{stageApps.length}</strong>
-                    <p>{stage}</p>
-                    {stageApps.map((app) => (
-                      <div key={app.id} className="journey-pill" onClick={() => openApplication(app.id)}>
-                        <span>{app.company}</span>
-                        <StageBadge stage={app.stage} attention={isStalled(app)} />
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {selectedApplication && (
-          <section className="detail-section card">
-            <div className="detail-head">
-              <div>
-                <p className="section-label">Active focus</p>
-                <h3>{selectedApplication.company}</h3>
-                <p className="muted">
-                  {selectedApplication.role} · Applied {formatDate(selectedApplication.appliedOn)} · {selectedApplication.source}
-                </p>
-              </div>
-              <div className="detail-actions">
-                <StageBadge stage={selectedApplication.stage} attention={isStalled(selectedApplication)} />
-                <div>
                   <button
                     className="ghost-button"
-                    onClick={() =>
-                      handleStageChange(
-                        selectedApplication,
-                        selectedApplication.stage === 'Archived' ? 'Application Submitted' : 'Archived',
-                      )
-                    }
+                    onClick={() => handleStageChange(selectedApplication, 'Archived')}
                   >
-                    {selectedApplication.stage === 'Archived' ? 'Re-open' : 'Archive'}
+                    Archive
                   </button>
-                  <button className="ghost-button danger" onClick={() => deleteApplication(selectedApplication.id)}>
+                  <button
+                    className="ghost-button danger"
+                    onClick={() => deleteApplication(selectedApplication.id)}
+                  >
                     Delete
                   </button>
                 </div>
-              </div>
-            </div>
-
-            <div className="detail-ribbon">
-              <div>
-                <span>Follow up</span>
-                <strong>{formatFollowUpLabel(selectedApplication)}</strong>
-                <p className="muted">{formatDate(selectedApplication.followUpOn)}</p>
-              </div>
-              <div>
-                <span>Interview</span>
-                <strong>{formatInterviewLabel(selectedApplication)}</strong>
-                <p className="muted">{selectedApplication.interviewStage}</p>
-              </div>
-              <div>
-                <span>Prep</span>
-                <strong>{selectedApplication.prepStatus}</strong>
-                <p className="muted">{selectedApplication.recruiter || 'No recruiter yet'}</p>
-              </div>
-            </div>
-
-            <div className="detail-grid">
-              <label>
-                <span>Current stage</span>
-                <select
-                  value={selectedApplication.stage}
-                  onChange={(event) => handleStageChange(selectedApplication, event.target.value as Stage)}
-                >
-                  {stageOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Prep status</span>
-                <select
-                  value={selectedApplication.prepStatus}
-                  onChange={(event) =>
-                    updateApplication(selectedApplication.id, { prepStatus: event.target.value as Application['prepStatus'] })
-                  }
-                >
-                  <option>Not started</option>
-                  <option>Light prep</option>
-                  <option>Ready</option>
-                </select>
-              </label>
-              <label>
-                <span>Follow-up date</span>
-                <input
-                  type="date"
-                  value={selectedApplication.followUpOn}
-                  onChange={(event) =>
-                    updateApplication(selectedApplication.id, { followUpOn: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                <span>Interview date</span>
-                <input
-                  type="datetime-local"
-                  value={selectedApplication.interviewDate}
-                  onChange={(event) =>
-                    updateApplication(selectedApplication.id, { interviewDate: event.target.value })
-                  }
-                />
-              </label>
-            </div>
-
-            <div className="detail-actions-panel">
-              <button className="secondary-button" onClick={() => markFollowUpSent(selectedApplication)}>
-                Log follow-up
-              </button>
-              <button className="secondary-button" onClick={() => scheduleNextRound(selectedApplication)}>
-                Move to next stage
-              </button>
-              <button className="secondary-button" onClick={() => markPrepReady(selectedApplication)}>
-                Prep ready
-              </button>
-            </div>
-
-            <label className="detail-field">
-              <span>Notes</span>
-              <textarea
-                value={selectedApplication.notes}
-                onChange={(event) => updateApplication(selectedApplication.id, { notes: event.target.value })}
-              />
-            </label>
-
-            <div className="detail-grid detail-grid--shrink">
-              <label>
-                <span>Archive reason</span>
-                <select
-                  value={selectedApplication.archiveReason}
-                  disabled={selectedApplication.stage !== 'Archived'}
-                  onChange={(event) =>
-                    updateApplication(selectedApplication.id, { archiveReason: event.target.value })
-                  }
-                >
-                  <option value="">Select reason</option>
-                  {archiveReasons.map((reason) => (
-                    <option key={reason} value={reason}>
-                      {reason}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Archive detail</span>
-                <input
-                  disabled={selectedApplication.stage !== 'Archived'}
-                  value={selectedApplication.archiveDetail}
-                  onChange={(event) =>
-                    updateApplication(selectedApplication.id, { archiveDetail: event.target.value })
-                  }
-                />
-              </label>
-            </div>
-
-            <section className="detail-history">
-              <div className="card-heading">
-                <div>
-                  <p className="section-label">History</p>
-                  <h3>Timeline</h3>
-                </div>
-              </div>
-              <div className="history-list">
-                {selectedApplication.history.map((entry) => (
-                  <article key={entry.id} className="history-item">
-                    <div className={`history-dot history-${slugify(entry.type)}`} />
-                    <div>
-                      <strong>{entry.label}</strong>
-                      <p>{entry.detail}</p>
-                      <span>{formatLongDate(entry.date)}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </section>
-        )}
-
-        {activeView === 'journey' && (
-          <section className="journey-section card">
-            <div className="card-heading">
-              <div>
-                <p className="section-label">Journey map</p>
-                <h3>Visual history for every tracked opportunity</h3>
-              </div>
-            </div>
-            <div className="journey-columns">
-              {stageOptions.map((stage) => {
-                const stageApps = applications.filter((app) => app.stage === stage)
-                return (
-                  <div key={stage} className="journey-column">
-                    <strong>{stageApps.length}</strong>
-                    <p>{stage}</p>
-                    {stageApps.map((app) => (
-                      <div key={app.id} className="journey-pill" onClick={() => openApplication(app.id)}>
-                        <span>{app.company}</span>
-                        <small>{app.role}</small>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {activeView === 'archive' && (
-          <section className="archive-section card">
-            <div className="card-heading">
-              <div>
-                <p className="section-label">Archive</p>
-                <h3>Closed conversations</h3>
-              </div>
-            </div>
-            {archivedApplications.length ? (
-              <div className="archive-list">
-                {archivedApplications.map((application) => (
-                  <article key={application.id} className="archive-item">
-                    <div>
-                      <strong>{application.company}</strong>
-                      <p>{application.role}</p>
-                      <p className="muted">{application.archiveReason || 'Closed'}</p>
-                    </div>
-                    <div>
-                      <span>{application.archiveDetail || 'No detail yet'}</span>
-                      <button
-                        className="ghost-button"
-                        onClick={() => {
-                          setActiveView('dashboard')
-                          setSelectedId(application.id)
-                        }}
-                      >
-                        View
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">No archived apps yet; close one once you hear back.</p>
+              </article>
             )}
           </section>
         )}
 
-        {activeView === 'roadmap' && (
-          <section className="card roadmap-card">
-            <div className="card-heading">
-              <div>
-                <p className="section-label">Roadmap</p>
-                <h3>What we’ve built and what’s next</h3>
-              </div>
+        {/* ── Pipeline ── */}
+        {activeView === 'pipeline' && (
+          <section className="pipeline-grid">
+            {pipelineBuckets.map((bucket) => {
+              const bucketApps = activeApplications.filter((a) => bucket.stages.includes(a.stage))
+              return (
+                <article key={bucket.title} className="panel-card pipeline-column">
+                  <div className="column-title">
+                    <h3>{bucket.title}</h3>
+                    <span>{bucketApps.length}</span>
+                  </div>
+                  <div className="column-list">
+                    {bucketApps.length ? (
+                      bucketApps.map((a) => (
+                        <button
+                          key={a.id}
+                          className="pipeline-card"
+                          onClick={() => { setSelectedId(a.id); setActiveView('tracker') }}
+                        >
+                          <strong>{a.company}</strong>
+                          <p>{a.role}</p>
+                          <span className={`stage-pill ${stageTone(a.stage)}`}>{a.stage}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="empty">No roles here yet.</p>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </section>
+        )}
+
+        {/* ── Interviews ── */}
+        {activeView === 'interviews' && (
+          <section className="panel-card interviews-table">
+            <div className="tracker-head">
+              <span>Company / Role</span>
+              <span>Interview</span>
+              <span>Prep</span>
+              <span>Status</span>
+              <span></span>
             </div>
-            <p className="muted">
-              Everything we discussed lives in `docs/master-roadmap.md`.
-            </p>
+            {upcomingInterviews.length ? (
+              upcomingInterviews.map((a) => (
+                <button
+                  key={a.id}
+                  className="tracker-row"
+                  onClick={() => { setSelectedId(a.id); setActiveView('tracker') }}
+                >
+                  <div>
+                    <strong>{a.company}</strong>
+                    <p>{a.role}</p>
+                  </div>
+                  <span>{formatDateTime(a.interviewDate)}</span>
+                  <span>{a.prepStatus}</span>
+                  <span className={`stage-pill ${stageTone(a.stage)}`}>{a.stage}</span>
+                  <span></span>
+                </button>
+              ))
+            ) : (
+              <p className="empty" style={{ padding: '16px' }}>No interviews scheduled yet.</p>
+            )}
+          </section>
+        )}
+
+        {/* ── Archive ── */}
+        {activeView === 'archive' && (
+          <section className="panel-card interviews-table">
+            <div className="tracker-head">
+              <span>Company / Role</span>
+              <span>Reason</span>
+              <span>Detail</span>
+              <span></span>
+              <span></span>
+            </div>
+            {archivedApplications.length ? (
+              archivedApplications.map((a) => (
+                <div key={a.id} className="tracker-row static-row">
+                  <div>
+                    <strong>{a.company}</strong>
+                    <p>{a.role}</p>
+                  </div>
+                  <span>{a.archiveReason || 'Not set'}</span>
+                  <span>{a.archiveDetail || '—'}</span>
+                  <span></span>
+                  <button
+                    className="ghost-button"
+                    onClick={() => { setSelectedId(a.id); setActiveView('tracker') }}
+                  >
+                    Open
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="empty" style={{ padding: '16px' }}>Nothing archived yet.</p>
+            )}
           </section>
         )}
       </main>
@@ -996,83 +847,58 @@ function handleQuickAdd(event: FormEvent<HTMLFormElement>) {
   )
 }
 
-function StageBadge({ stage, attention }: { stage: Stage; attention?: boolean }) {
-  const tone = stageTone(stage)
-  return <span className={`stage-badge tone-${tone} ${attention ? 'attention' : ''}`}>{stage}</span>
+/* ─── Small components ──────────────────────────── */
+
+function viewTitle(view: View) {
+  if (view === 'dashboard')  return 'Command Center'
+  if (view === 'tracker')    return 'Application Tracker'
+  if (view === 'pipeline')   return 'Pipeline Flow'
+  if (view === 'interviews') return 'Interview Calendar'
+  return 'Archive History'
 }
 
-function MetricCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  )
+function viewSubtitle(view: View) {
+  if (view === 'dashboard')  return 'Quick pulse on follow-ups and upcoming conversations.'
+  if (view === 'tracker')    return 'Full job board — click a stage pill to change it instantly.'
+  if (view === 'pipeline')   return 'Visual grouping by where each application currently stands.'
+  if (view === 'interviews') return 'Everything scheduled so prep never slips through.'
+  return 'Closed outcomes with reasons so you can spot patterns over time.'
 }
 
-function stepHasInterview(stage: Stage) {
-  return stage.includes('Interview') || stage === 'Recruiter Screen'
+function getNextStage(stage: Stage): Stage {
+  const index = stageOptions.indexOf(stage)
+  if (index === -1 || index === stageOptions.length - 1) return stage
+  return stageOptions[index + 1]
 }
 
 function stageTone(stage: Stage) {
-  if (stage === 'Archived' || stage === 'No response' || stage === 'Offer declined') return 'muted'
-  if (stage === 'Offer made' || stage === 'Offer accepted') return 'success'
-  if (stage.includes('Interview') || stage === 'Recruiter Screen') return 'accent'
-  if (stage.includes('Follow-Up') || stage === 'Waiting on response') return 'highlight'
-  return 'primary'
-}
-
-function formatFollowUpLabel(application: Application) {
-  if (!application.followUpOn) return 'No follow-up set'
-  const days = daysUntil(application.followUpOn)
-  if (days < 0) return `Overdue ${Math.abs(days)}d`
-  if (days === 0) return 'Due today'
-  return `Due in ${days}d`
-}
-
-function formatInterviewLabel(application: Application) {
-  if (!application.interviewStage) return 'No interview yet'
-  if (!application.interviewDate) return application.interviewStage
-  return formatDateTime(application.interviewDate)
-}
-
-function applicationCountText(count: number) {
-  return `${count} tracked roles`
+  if (stage === 'Offer accepted' || stage === 'Offer made') return 'tone-success'
+  if (stage === 'Offer declined' || stage === 'No response' || stage === 'Archived') return 'tone-muted'
+  if (stage.includes('Interview') || stage === 'Recruiter Screen') return 'tone-accent'
+  if (stage.includes('Follow-Up') || stage === 'Waiting on response') return 'tone-warning'
+  return 'tone-base'
 }
 
 function isStalled(application: Application) {
-  const finalStages: Stage[] = ['Offer made', 'Offer accepted', 'Offer declined', 'Archived']
-  if (finalStages.includes(application.stage)) return false
-  return daysSince(application.appliedOn) >= 7
+  if (application.stage === 'Archived') return false
+  return daysSince(application.appliedOn) >= 7 && application.stage !== 'Offer accepted'
 }
 
 function isDue(date: string) {
-  const target = new Date(date)
-  const today = new Date()
-  return today >= target
+  if (!date) return false
+  return new Date(date) <= new Date()
 }
 
-function daysSince(date: string) {
-  const target = new Date(date)
-  const today = new Date()
-  const diff = today.getTime() - target.getTime()
-  return Math.max(0, Math.floor(diff / 86400000))
-}
-
-function daysUntil(date: string) {
-  const target = new Date(date)
-  const today = new Date()
-  const diff = target.getTime() - today.getTime()
-  return Math.ceil(diff / 86400000)
-}
-
-function formatDate(date: string) {
-  if (!date) return 'TBD'
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(date))
+function formatFollowUp(date: string) {
+  if (!date) return 'No follow-up'
+  const days = daysUntil(date)
+  if (days < 0) return `Overdue ${Math.abs(days)}d`
+  if (days === 0) return 'Due today'
+  return `In ${days}d`
 }
 
 function formatDateTime(date: string) {
-  if (!date) return 'Not scheduled'
+  if (!date) return '—'
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
@@ -1081,32 +907,12 @@ function formatDateTime(date: string) {
   }).format(new Date(date))
 }
 
-function formatLongDate(date: string) {
-  if (!date) return ''
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(
-    new Date(date),
-  )
+function daysSince(date: string) {
+  return Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 86400000))
 }
 
-function getTodayIso() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function addDays(date: string, days: number) {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return next.toISOString().slice(0, 10)
-}
-
-function slugify(value: string) {
-  return value.toLowerCase().replace(/\s+/g, '-')
-}
-
-function getNextStage(stage: Stage): Stage {
-  const order: Stage[] = stageOptions
-  const idx = order.indexOf(stage)
-  if (idx === -1 || idx === order.length - 1) return stage
-  return order[idx + 1]
+function daysUntil(date: string) {
+  return Math.ceil((new Date(date).getTime() - Date.now()) / 86400000)
 }
 
 function createHistoryEntry(label: string, detail: string, type: HistoryType, date?: string): HistoryEntry {
@@ -1117,6 +923,16 @@ function createHistoryEntry(label: string, detail: string, type: HistoryType, da
     type,
     date: date ?? getTodayIso(),
   }
+}
+
+function getTodayIso() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function addDays(date: string, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
 }
 
 export default App
