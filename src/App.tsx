@@ -78,6 +78,10 @@ type Application = {
   /* Notes */
   notes: string
 
+  /* Tracking origin */
+  sourceQueueId?: number  // links back to QueuedApp.id if this came from the queue
+  autoAdded?: boolean     // true if auto-added from a next-steps/interview email (not manual)
+
   /* Offer */
   offerAmount: string
   decisionNotes: string
@@ -89,15 +93,30 @@ type Application = {
   history: HistoryEntry[]
 }
 
+/*
+ * Email type determines how an incoming message gets routed:
+ *   acknowledgment → Queue only (user decides whether to track)
+ *   interview | assessment | next_steps | offer | rejection → auto-route to tracker
+ */
+type EmailType = 'acknowledgment' | 'interview' | 'assessment' | 'next_steps' | 'offer' | 'rejection'
+
 /* Queued application — pre-tracker holding state, ready for email integration */
 type QueuedApp = {
   id: number
   company: string
   role: string
   source: 'email' | 'manual' | 'linkedin' | 'other'
-  snippet: string       // email preview or manual note
-  receivedOn: string    // ISO date
-  status: 'pending' | 'dismissed'
+  emailType: EmailType
+  snippet: string         // email preview or manual note
+  receivedOn: string      // ISO date
+  /*
+   * pending      — waiting in queue for user decision
+   * dismissed    — user doesn't want to track this one
+   * tracked      — either user selected it OR an email auto-converted it
+   *                (a "tracked" item can NEVER become a second tracker entry)
+   */
+  status: 'pending' | 'dismissed' | 'tracked'
+  trackedAppId?: number   // links to Application.id once tracked
 }
 
 type QuickAddForm = {
@@ -128,6 +147,28 @@ const archiveReasons = [
   'Rejected after final round', 'Role filled', 'Salary mismatch',
   'Withdrew', 'No longer interested', 'Unable to contact', 'Offer declined', 'Other',
 ]
+
+/*
+ * Maps an email type to the Stage it should produce in the tracker.
+ * This is the single source of truth for "what does this email mean?"
+ */
+const EMAIL_TYPE_TO_STAGE: Record<EmailType, Stage> = {
+  acknowledgment: 'Application Submitted',  // → queue only, not used as a stage upgrade
+  next_steps:     'Recruiter Screen',
+  assessment:     'Recruiter Screen',
+  interview:      'Scheduled 1st Interview',
+  offer:          'Offer made',
+  rejection:      'No response',
+}
+
+const EMAIL_TYPE_LABELS: Record<EmailType, string> = {
+  acknowledgment: 'Thanks for applying (acknowledgment)',
+  next_steps:     'Next steps / moving forward',
+  assessment:     'Assessment / screening',
+  interview:      'Interview invite',
+  offer:          'Offer letter / offer made',
+  rejection:      'Rejection',
+}
 
 /* Fields added after initial release — fill missing keys when loading old data */
 const APP_DEFAULTS: Partial<Application> = {
@@ -178,8 +219,18 @@ const sampleApplications: Application[] = [
 ]
 
 const sampleQueue: QueuedApp[] = [
-  { id: 101, company: 'Acme Health', role: 'Operations Coordinator', source: 'email', receivedOn: '2026-03-26', status: 'pending', snippet: 'Thank you for applying to the Operations Coordinator position. We have received your application and will be reviewing it shortly.' },
-  { id: 102, company: 'BrightPath', role: 'Intake Specialist', source: 'linkedin', receivedOn: '2026-03-28', status: 'pending', snippet: 'Hi Aamir, thanks for your interest in BrightPath! We\'ve received your application and our team will be in touch.' },
+  {
+    id: 101, company: 'Acme Health', role: 'Operations Coordinator',
+    source: 'email', emailType: 'acknowledgment', status: 'pending',
+    receivedOn: '2026-03-26',
+    snippet: 'Thank you for applying to the Operations Coordinator position. We have received your application and will be reviewing it shortly.',
+  },
+  {
+    id: 102, company: 'BrightPath', role: 'Intake Specialist',
+    source: 'linkedin', emailType: 'acknowledgment', status: 'pending',
+    receivedOn: '2026-03-28',
+    snippet: "Hi Aamir, thanks for your interest in BrightPath! We've received your application and our team will be in touch.",
+  },
 ]
 
 const quickAddDefaults: QuickAddForm = {
@@ -270,8 +321,15 @@ function App() {
   const [sortDir, setSortDir]             = useState<SortDir>('desc')
   const [quickAddOpen, setQuickAddOpen]   = useState(false)
   const [quickAddForm, setQuickAddForm]   = useState<QuickAddForm>(quickAddDefaults)
-  const [showDismissed, setShowDismissed] = useState(false)
-  const [showQueueForm, setShowQueueForm] = useState(false)
+  const [showDismissed, setShowDismissed]   = useState(false)
+  const [showTracked, setShowTracked]       = useState(false)
+  const [showQueueForm, setShowQueueForm]   = useState(false)
+  const [showSimulate, setShowSimulate]     = useState(false)
+  const [simResult, setSimResult]           = useState<{ type: 'success' | 'info'; message: string } | null>(null)
+  const [simForm, setSimForm]               = useState({
+    company: '', role: '', emailType: 'acknowledgment' as EmailType,
+    source: 'email' as QueuedApp['source'], snippet: '',
+  })
 
   /* ── Weekly goal state ── */
   const [weeklyGoal, setWeeklyGoal] = useState<number>(() => {
@@ -284,6 +342,7 @@ function App() {
   /* ── Queue form state ── */
   const [queueForm, setQueueForm] = useState({
     company: '', role: '', source: 'manual' as QueuedApp['source'],
+    emailType: 'acknowledgment' as EmailType,
     snippet: '', receivedOn: getTodayIso(),
   })
 
@@ -315,6 +374,7 @@ function App() {
 
   const pendingQueue   = queue.filter((q) => q.status === 'pending')
   const dismissedQueue = queue.filter((q) => q.status === 'dismissed')
+  const trackedQueue   = queue.filter((q) => q.status === 'tracked')
 
   /* This week's applications (Mon–Sun) */
   const thisWeekApps = useMemo(() => {
@@ -418,30 +478,40 @@ function App() {
     if (!queueForm.company.trim()) return
     setQueue((curr) => [{
       id: Date.now(), company: queueForm.company.trim(), role: queueForm.role.trim(),
-      source: queueForm.source, snippet: queueForm.snippet.trim(),
+      source: queueForm.source, emailType: queueForm.emailType,
+      snippet: queueForm.snippet.trim(),
       receivedOn: queueForm.receivedOn, status: 'pending',
     }, ...curr])
-    setQueueForm({ company: '', role: '', source: 'manual', snippet: '', receivedOn: getTodayIso() })
+    setQueueForm({ company: '', role: '', source: 'manual', emailType: 'acknowledgment', snippet: '', receivedOn: getTodayIso() })
     setShowQueueForm(false)
   }
 
-  function trackFromQueue(q: QueuedApp) {
+  /* Convert a queue item into a full tracker application and mark it tracked */
+  function trackFromQueue(q: QueuedApp, overrideStage?: Stage) {
+    const stage: Stage = overrideStage ?? EMAIL_TYPE_TO_STAGE[q.emailType] ?? 'Application Submitted'
+    const appId = Date.now()
     const newApp: Application = {
-      id: Date.now(), company: q.company, role: q.role,
+      id: appId, company: q.company, role: q.role,
       source: q.source === 'email' ? 'Email' : q.source === 'linkedin' ? 'LinkedIn' : 'Other',
       appliedOn: q.receivedOn, followUpOn: addDays(q.receivedOn, 7),
-      stage: 'Application Submitted', priority: 'Medium', fitScore: 0, desireRank: 0,
+      stage, priority: 'Medium', fitScore: 0, desireRank: 0,
       salary: 'TBD', salaryTargeted: '', workStyle: '',
       recruiter: '', recruiterContact: '', interviewingManager: '', managerContact: '',
       interviewDate: '', interviewStage: '', prepStatus: 'Not started',
       jobPostingUrl: '', jobDescription: '', resumeVersion: '', coverLetterNote: '',
       companyResearch: '', prepQuestions: '', talkingPoints: '',
       notes: q.snippet || '', offerAmount: '', decisionNotes: '', archiveReason: '', archiveDetail: '',
-      history: [createHistoryEntry('Added from queue', q.snippet || 'Moved from inbox to tracker.', 'Applied', q.receivedOn)],
+      sourceQueueId: q.id, autoAdded: false,
+      history: [createHistoryEntry(
+        `Added from inbox`, q.snippet || 'Moved from inbox to tracker.', 'Applied', q.receivedOn,
+      )],
     }
     setApplications((curr) => [newApp, ...curr])
-    setQueue((curr) => curr.filter((item) => item.id !== q.id))
-    setSelectedId(newApp.id)
+    /* Mark as tracked (not deleted) so we remember where it came from */
+    setQueue((curr) => curr.map((item) =>
+      item.id === q.id ? { ...item, status: 'tracked', trackedAppId: appId } : item,
+    ))
+    setSelectedId(appId)
     setActiveView('tracker')
     setDetailTab('overview')
   }
@@ -452,6 +522,124 @@ function App() {
 
   function restoreFromQueue(id: number) {
     setQueue((curr) => curr.map((q) => q.id === id ? { ...q, status: 'pending' } : q))
+  }
+
+  /*
+   * ── handleIncomingEmail ──────────────────────────────────────────────────
+   * Core deduplication + routing logic.
+   * This is what n8n will call (via webhook) when an email comes in.
+   * Until then, the Simulate panel calls it directly for testing.
+   *
+   * Routing rules:
+   *  1. "acknowledgment" → always goes to queue (user decides to track or not)
+   *  2. Any other type:
+   *     a. Company already in tracker (non-archived) → update stage only, no new entry
+   *     b. Company in queue (pending) → convert queue item to tracker + set stage
+   *     c. Not found anywhere → auto-add directly to tracker at the mapped stage
+   */
+  function handleIncomingEmail(
+    company: string, role: string,
+    emailType: EmailType,
+    source: QueuedApp['source'],
+    snippet: string,
+  ): string {
+    const norm = company.trim().toLowerCase()
+
+    /* Rule 1 — acknowledgment emails go to queue for the user to decide */
+    if (emailType === 'acknowledgment') {
+      /* Don't add a duplicate if this company+status is already pending */
+      const alreadyQueued = queue.some(
+        (q) => q.company.trim().toLowerCase() === norm && q.status === 'pending',
+      )
+      const alreadyTracked = applications.some(
+        (a) => a.company.trim().toLowerCase() === norm && a.stage !== 'Archived',
+      )
+      if (alreadyTracked) {
+        return `ℹ️ "${company}" is already being tracked — acknowledgment email ignored.`
+      }
+      if (alreadyQueued) {
+        return `ℹ️ "${company}" is already in your inbox queue.`
+      }
+      const newQueueItem: QueuedApp = {
+        id: Date.now(), company: company.trim(), role: role.trim(),
+        source, emailType, snippet, receivedOn: getTodayIso(), status: 'pending',
+      }
+      setQueue((curr) => [newQueueItem, ...curr])
+      return `📬 Added "${company}" to your inbox queue — select it to start tracking.`
+    }
+
+    const newStage = EMAIL_TYPE_TO_STAGE[emailType]
+
+    /* Rule 2a — company already in tracker → update stage (no new entry) */
+    const existingApp = applications.find(
+      (a) => a.company.trim().toLowerCase() === norm && a.stage !== 'Archived',
+    )
+    if (existingApp) {
+      const currIdx = stageOptions.indexOf(existingApp.stage)
+      const newIdx  = stageOptions.indexOf(newStage)
+      if (newIdx > currIdx) {
+        /* Only move forward, never backward */
+        handleStageChange(existingApp, newStage)
+        appendHistory(existingApp.id, createHistoryEntry(
+          `Email: ${EMAIL_TYPE_LABELS[emailType]}`,
+          snippet || `Incoming email triggered stage update.`,
+          'Status',
+        ))
+        return `✅ Updated "${company}" in your tracker → ${newStage}`
+      }
+      return `ℹ️ "${company}" is already at "${existingApp.stage}" — no stage change needed.`
+    }
+
+    /* Rule 2b — company found in queue (pending) → convert + set stage */
+    const queueItem = queue.find(
+      (q) => q.company.trim().toLowerCase() === norm && q.status === 'pending',
+    )
+    if (queueItem) {
+      const appId = Date.now()
+      const newApp: Application = {
+        id: appId, company: queueItem.company, role: queueItem.role || role,
+        source: source === 'email' ? 'Email' : source === 'linkedin' ? 'LinkedIn' : 'Other',
+        appliedOn: queueItem.receivedOn, followUpOn: addDays(queueItem.receivedOn, 7),
+        stage: newStage, priority: 'Medium', fitScore: 0, desireRank: 0,
+        salary: 'TBD', salaryTargeted: '', workStyle: '',
+        recruiter: '', recruiterContact: '', interviewingManager: '', managerContact: '',
+        interviewDate: '', interviewStage: '', prepStatus: 'Not started',
+        jobPostingUrl: '', jobDescription: '', resumeVersion: '', coverLetterNote: '',
+        companyResearch: '', prepQuestions: '', talkingPoints: '',
+        notes: snippet || '', offerAmount: '', decisionNotes: '', archiveReason: '', archiveDetail: '',
+        sourceQueueId: queueItem.id, autoAdded: true,
+        history: [
+          createHistoryEntry('Auto-added from email', snippet || `Email triggered: ${EMAIL_TYPE_LABELS[emailType]}`, 'Applied', queueItem.receivedOn),
+          createHistoryEntry(EMAIL_TYPE_LABELS[emailType], snippet, 'Status'),
+        ],
+      }
+      setApplications((curr) => [newApp, ...curr])
+      setQueue((curr) => curr.map((q) =>
+        q.id === queueItem.id ? { ...q, status: 'tracked', trackedAppId: appId } : q,
+      ))
+      return `✅ "${company}" was in your queue — moved to tracker automatically at "${newStage}"`
+    }
+
+    /* Rule 2c — not found anywhere → auto-add to tracker */
+    const appId = Date.now()
+    const newApp: Application = {
+      id: appId, company: company.trim(), role: role.trim(),
+      source: source === 'email' ? 'Email' : source === 'linkedin' ? 'LinkedIn' : 'Other',
+      appliedOn: getTodayIso(), followUpOn: addDays(getTodayIso(), 7),
+      stage: newStage, priority: 'Medium', fitScore: 0, desireRank: 0,
+      salary: 'TBD', salaryTargeted: '', workStyle: '',
+      recruiter: '', recruiterContact: '', interviewingManager: '', managerContact: '',
+      interviewDate: '', interviewStage: '', prepStatus: 'Not started',
+      jobPostingUrl: '', jobDescription: '', resumeVersion: '', coverLetterNote: '',
+      companyResearch: '', prepQuestions: '', talkingPoints: '',
+      notes: snippet || '', offerAmount: '', decisionNotes: '', archiveReason: '', archiveDetail: '',
+      autoAdded: true,
+      history: [createHistoryEntry(
+        'Auto-added from email', snippet || `Email triggered: ${EMAIL_TYPE_LABELS[emailType]}`, 'Applied',
+      )],
+    }
+    setApplications((curr) => [newApp, ...curr])
+    return `✅ "${company}" auto-added to your tracker at "${newStage}" (new entry — wasn't in your queue or tracker)`
   }
 
   /* ── CSV export ── */
@@ -1083,17 +1271,90 @@ function App() {
             {/* Toolbar */}
             <div className="inbox-toolbar">
               <div>
-                <strong style={{ fontSize: '0.9rem' }}>
-                  {pendingQueue.length} pending
-                </strong>
+                <strong style={{ fontSize: '0.9rem' }}>{pendingQueue.length} pending</strong>
                 <span style={{ color: 'var(--muted)', fontSize: '0.82rem', marginLeft: '8px' }}>
-                  — select which applications to officially track
+                  — pick which applications you want to track
                 </span>
               </div>
-              <button className="ghost-button" onClick={() => setShowQueueForm((v) => !v)}>
-                {showQueueForm ? 'Cancel' : '+ Add manually'}
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="ghost-button" style={{ fontSize: '0.8rem' }}
+                  onClick={() => { setShowSimulate((v) => !v); setSimResult(null) }}>
+                  {showSimulate ? 'Hide simulator' : '⚡ Test email routing'}
+                </button>
+                <button className="ghost-button" onClick={() => setShowQueueForm((v) => !v)}>
+                  {showQueueForm ? 'Cancel' : '+ Add manually'}
+                </button>
+              </div>
             </div>
+
+            {/*
+              ── Email Routing Simulator ──────────────────────────────────
+              Lets you test the dedup logic before n8n is connected.
+              When n8n is live, it will call handleIncomingEmail() via a webhook
+              and this panel won't be needed for production use.
+            */}
+            {showSimulate && (
+              <div className="simulate-panel">
+                <div className="simulate-header">
+                  <strong>Email routing simulator</strong>
+                  <span>
+                    Test how an incoming email gets routed — same logic n8n will use.
+                    Try simulating "thanks for applying" then "interview invite" for the same company.
+                  </span>
+                </div>
+                <div className="simulate-form">
+                  <label className="form-label">Company name
+                    <input value={simForm.company} placeholder="e.g. Acme Health"
+                      onChange={(e) => setSimForm((f) => ({ ...f, company: e.target.value }))} />
+                  </label>
+                  <label className="form-label">Role (optional)
+                    <input value={simForm.role} placeholder="e.g. Operations Manager"
+                      onChange={(e) => setSimForm((f) => ({ ...f, role: e.target.value }))} />
+                  </label>
+                  <label className="form-label">Email type
+                    <select value={simForm.emailType}
+                      onChange={(e) => setSimForm((f) => ({ ...f, emailType: e.target.value as EmailType }))}>
+                      {(Object.entries(EMAIL_TYPE_LABELS) as [EmailType, string][]).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="form-label">Source
+                    <select value={simForm.source}
+                      onChange={(e) => setSimForm((f) => ({ ...f, source: e.target.value as QueuedApp['source'] }))}>
+                      <option value="email">Email</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="manual">Manual</option>
+                    </select>
+                  </label>
+                  <label className="form-label" style={{ gridColumn: '1 / -1' }}>
+                    Email snippet (optional)
+                    <input value={simForm.snippet} placeholder="Paste a line from the email to save as a note…"
+                      onChange={(e) => setSimForm((f) => ({ ...f, snippet: e.target.value }))} />
+                  </label>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    style={{ gridColumn: '1 / -1' }}
+                    disabled={!simForm.company.trim()}
+                    onClick={() => {
+                      const result = handleIncomingEmail(
+                        simForm.company, simForm.role,
+                        simForm.emailType, simForm.source, simForm.snippet,
+                      )
+                      setSimResult({ type: result.startsWith('✅') ? 'success' : 'info', message: result })
+                    }}
+                  >
+                    Simulate incoming email →
+                  </button>
+                </div>
+                {simResult && (
+                  <div className={`sim-result ${simResult.type}`}>
+                    {simResult.message}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Manual add form */}
             {showQueueForm && (
@@ -1115,6 +1376,14 @@ function App() {
                     <option value="other">Other</option>
                   </select>
                 </label>
+                <label className="form-label">Email / message type
+                  <select value={queueForm.emailType}
+                    onChange={(e) => setQueueForm((f) => ({ ...f, emailType: e.target.value as EmailType }))}>
+                    {(Object.entries(EMAIL_TYPE_LABELS) as [EmailType, string][]).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </label>
                 <label className="form-label">Received on
                   <input type="date" value={queueForm.receivedOn}
                     onChange={(e) => setQueueForm((f) => ({ ...f, receivedOn: e.target.value }))} />
@@ -1122,7 +1391,7 @@ function App() {
                 <label className="form-label" style={{ gridColumn: '1 / -1' }}>
                   Note / email snippet
                   <textarea value={queueForm.snippet} style={{ minHeight: '60px' }}
-                    placeholder="Paste the email subject line or a short note about this application…"
+                    placeholder="Paste the email subject line or a short note…"
                     onChange={(e) => setQueueForm((f) => ({ ...f, snippet: e.target.value }))} />
                 </label>
                 <button type="submit" className="primary-button" style={{ gridColumn: '1 / -1' }}>
@@ -1131,11 +1400,15 @@ function App() {
               </form>
             )}
 
-            {/* Queue list */}
-            {pendingQueue.length === 0 && !showQueueForm ? (
+            {/* Pending queue */}
+            {pendingQueue.length === 0 && !showQueueForm && !showSimulate ? (
               <div className="inbox-empty">
                 <div className="inbox-empty-icon">📬</div>
-                <p>Your inbox is empty. Applications from email will appear here automatically once the Gmail integration is set up. You can also add them manually above.</p>
+                <p>
+                  Your inbox is empty. Once the Gmail integration (n8n) is connected, "thanks for
+                  applying" emails will appear here automatically. Use "Test email routing" above
+                  to try the logic now, or add items manually.
+                </p>
               </div>
             ) : (
               <div className="queue-list">
@@ -1151,10 +1424,11 @@ function App() {
                         </div>
                         <div className="queue-meta">
                           <span className={`queue-source-badge source-${q.source}`}>{q.source}</span>
+                          <span className="queue-meta-item">{EMAIL_TYPE_LABELS[q.emailType]}</span>
                           <span className="queue-meta-item">Received {formatDate(q.receivedOn)}</span>
                           {overdue && (
                             <span className="queue-meta-item warn">
-                              ⚠ {daysWaiting}d waiting — consider following up
+                              ⚠ {daysWaiting}d — follow up if you haven't heard back
                             </span>
                           )}
                         </div>
@@ -1174,7 +1448,47 @@ function App() {
               </div>
             )}
 
-            {/* Dismissed section */}
+            {/* Already tracking (from queue) */}
+            {trackedQueue.length > 0 && (
+              <>
+                <button className="inbox-dismissed-toggle" onClick={() => setShowTracked((v) => !v)}>
+                  {showTracked ? '▾' : '▸'} {trackedQueue.length} already tracking
+                </button>
+                {showTracked && (
+                  <div className="queue-list">
+                    {trackedQueue.map((q) => (
+                      <div key={q.id} className="queue-card dismissed">
+                        <div className="queue-card-body">
+                          <div className="queue-card-title">
+                            <strong>{q.company}</strong>
+                            {q.role && <span className="queue-role">{q.role}</span>}
+                          </div>
+                          <div className="queue-meta">
+                            <span className="queue-source-badge source-manual"
+                              style={{ background: 'var(--ok-dim)', color: 'var(--ok)', borderColor: 'rgba(52,211,153,0.22)' }}>
+                              tracking
+                            </span>
+                            <span className="queue-meta-item">Received {formatDate(q.receivedOn)}</span>
+                          </div>
+                        </div>
+                        <div className="queue-actions">
+                          {q.trackedAppId && (
+                            <button className="ghost-button sm" onClick={() => {
+                              setSelectedId(q.trackedAppId!)
+                              setActiveView('tracker')
+                            }}>
+                              Open
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Dismissed */}
             {dismissedQueue.length > 0 && (
               <>
                 <button className="inbox-dismissed-toggle" onClick={() => setShowDismissed((v) => !v)}>
