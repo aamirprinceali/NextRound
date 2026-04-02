@@ -24,7 +24,7 @@ type Stage =
   | 'Offer declined'
   | 'Archived'
 
-type View = 'dashboard' | 'tracker' | 'pipeline' | 'interviews' | 'calendar' | 'inbox' | 'stats' | 'archive'
+type View = 'dashboard' | 'tracker' | 'pipeline' | 'interviews' | 'calendar' | 'inbox' | 'stats' | 'rejections' | 'archive'
 
 type DetailTab = 'overview' | 'contact' | 'job' | 'prep' | 'offer' | 'email'
 
@@ -399,6 +399,13 @@ const ArchiveIcon = () => (
     <rect x="1" y="2" width="13" height="2.8" rx="1" fill="currentColor"/>
     <path d="M2.5 4.8V12a1 1 0 001 1h8a1 1 0 001-1V4.8" stroke="currentColor" strokeWidth="1.4"/>
     <path d="M5.5 8.5h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+)
+
+const RejectionsIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+    <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.3"/>
+    <path d="M4.5 4.5l6 6M10.5 4.5l-6 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
   </svg>
 )
 
@@ -814,13 +821,21 @@ function App() {
         </div>
 
         <nav className="main-nav">
-          {(['dashboard','tracker','pipeline','interviews','calendar','inbox','stats','archive'] as View[]).map((view) => {
+          {(['dashboard','tracker','pipeline','interviews','calendar','inbox','stats','rejections','archive'] as View[]).map((view) => {
             const icons: Record<View, React.ReactElement> = {
               dashboard: <DashboardIcon />, tracker: <TrackerIcon />,
               pipeline: <PipelineIcon />, interviews: <InterviewsIcon />,
               calendar: <CalendarIcon />, inbox: <InboxIcon />,
-              stats: <StatsIcon />, archive: <ArchiveIcon />,
+              stats: <StatsIcon />, rejections: <RejectionsIcon />, archive: <ArchiveIcon />,
             }
+            const labels: Record<View, string> = {
+              dashboard: 'Dashboard', tracker: 'Tracker', pipeline: 'Pipeline',
+              interviews: 'Interviews', calendar: 'Calendar', inbox: 'Inbox',
+              stats: 'Stats', rejections: 'Rejections', archive: 'Archive',
+            }
+            const rejectionCount = applications.filter((a) =>
+              a.stage === 'No response' || a.stage === 'Archived'
+            ).length
             return (
               <button
                 key={view}
@@ -828,9 +843,12 @@ function App() {
                 onClick={() => setActiveView(view)}
               >
                 {icons[view]}
-                {view}
+                {labels[view]}
                 {view === 'inbox' && pendingQueue.length > 0 && (
                   <span className="nav-badge">{pendingQueue.length}</span>
+                )}
+                {view === 'rejections' && rejectionCount > 0 && (
+                  <span className="nav-badge danger">{rejectionCount}</span>
                 )}
               </button>
             )
@@ -1604,14 +1622,39 @@ function App() {
               </form>
             )}
 
+            {/* How the queue works */}
+            {!showSimulate && !showQueueForm && (
+              <div className="inbox-how-it-works">
+                <span className="inbox-how-step">
+                  <span className="inbox-how-num">1</span>
+                  Apply anywhere online
+                </span>
+                <span className="inbox-how-arrow">→</span>
+                <span className="inbox-how-step">
+                  <span className="inbox-how-num">2</span>
+                  Confirmation email arrives here
+                </span>
+                <span className="inbox-how-arrow">→</span>
+                <span className="inbox-how-step">
+                  <span className="inbox-how-num">3</span>
+                  Track the ones you care about
+                </span>
+                <span className="inbox-how-arrow">→</span>
+                <span className="inbox-how-step">
+                  <span className="inbox-how-num">4</span>
+                  Interview invite? Auto-promoted
+                </span>
+              </div>
+            )}
+
             {/* Pending queue */}
             {pendingQueue.length === 0 && !showQueueForm && !showSimulate ? (
               <div className="inbox-empty">
                 <div className="inbox-empty-icon">📬</div>
                 <p>
-                  Your inbox is empty. Once the Gmail integration (n8n) is connected, "thanks for
-                  applying" emails will appear here automatically. Use "Test email routing" above
-                  to try the logic now, or add items manually.
+                  Your inbox is empty. Once Gmail is connected via n8n, "thanks for applying" emails
+                  will appear here automatically. Use "Test email routing" to try the logic now, or
+                  add items manually.
                 </p>
               </div>
             ) : (
@@ -1632,18 +1675,21 @@ function App() {
                           <span className="queue-meta-item">Received {formatDate(q.receivedOn)}</span>
                           {overdue && (
                             <span className="queue-meta-item warn">
-                              ⚠ {daysWaiting}d — follow up if you haven't heard back
+                              ⚠ {daysWaiting}d waiting
                             </span>
                           )}
                         </div>
                         {q.snippet && <p className="queue-snippet">{q.snippet}</p>}
+                        <p className="queue-hint">
+                          Track this to monitor it — if an interview invite comes in for this company, it'll auto-promote to your tracker.
+                        </p>
                       </div>
                       <div className="queue-actions">
-                        <button className="ghost-button sm success" onClick={() => trackFromQueue(q)}>
-                          Start tracking
+                        <button className="primary-button sm" onClick={() => trackFromQueue(q)}>
+                          Track this →
                         </button>
                         <button className="ghost-button sm" onClick={() => dismissFromQueue(q.id)}>
-                          Dismiss
+                          Not interested
                         </button>
                       </div>
                     </div>
@@ -1724,6 +1770,14 @@ function App() {
             )}
 
           </div>
+        )}
+
+        {/* ─── Rejection Center ─── */}
+        {activeView === 'rejections' && (
+          <RejectionCenterView
+            applications={applications}
+            onOpen={(id) => { setSelectedId(id); setActiveView('tracker') }}
+          />
         )}
 
         {/* ─── Archive ─── */}
@@ -1980,6 +2034,169 @@ const archiveReasonsConst = [
   'Withdrew', 'No longer interested', 'Unable to contact', 'Offer declined', 'Other',
 ]
 
+/* ─── Rejection Center ──────────────────────────── */
+function RejectionCenterView({
+  applications,
+  onOpen,
+}: {
+  applications: Application[]
+  onOpen: (id: number) => void
+}) {
+  const [filter, setFilter] = useState<'all' | 'ghosted' | 'near-miss' | 'early'>('all')
+
+  function stageReachedLabel(a: Application): string {
+    if (a.stage === 'No response') return 'No response (ghosted)'
+    const r = a.archiveReason || ''
+    if (r === 'Email rejection')                  return 'Email rejection (no contact)'
+    if (r === 'Rejected after recruiter screen')  return 'Recruiter screen'
+    if (r === 'Rejected after 1st round')         return 'Round 1 interview'
+    if (r === 'Rejected after final round')       return 'Final round interview'
+    if (r === 'Offer declined')                   return 'Offer stage (you declined)'
+    if (r === 'Role filled')                      return 'Role filled'
+    if (r === 'Salary mismatch')                  return 'Salary mismatch'
+    if (r === 'Withdrew')                         return 'Withdrew'
+    if (a.stage === 'Archived') {
+      const hist = a.history ?? []
+      if (hist.some((h) => ['Scheduled 4th Interview','Completed 4th Interview','Scheduled 3rd Interview','Completed 3rd Interview'].includes(h.label))) return 'Late-round interview'
+      if (hist.some((h) => ['Scheduled 2nd Interview','Completed 2nd Interview'].includes(h.label))) return 'Round 2 interview'
+      if (hist.some((h) => ['Scheduled 1st Interview','Completed 1st Interview'].includes(h.label))) return 'Round 1 interview'
+    }
+    return a.archiveReason || 'Unknown'
+  }
+
+  function isNearMiss(a: Application): boolean {
+    return ['Round 1 interview','Round 2 interview','Late-round interview','Final round interview'].includes(stageReachedLabel(a))
+  }
+
+  function isGhosted(a: Application): boolean {
+    return a.stage === 'No response' || stageReachedLabel(a) === 'Email rejection (no contact)'
+  }
+
+  const allRejections = applications.filter((a) => {
+    if (a.stage === 'No response') return true
+    if (a.stage === 'Archived') {
+      const r = a.archiveReason || ''
+      if (r === 'No longer interested' || r === 'Unable to contact') return false
+      return true
+    }
+    return false
+  })
+
+  const displayed = allRejections.filter((a) => {
+    if (filter === 'all')       return true
+    if (filter === 'ghosted')   return isGhosted(a)
+    if (filter === 'near-miss') return isNearMiss(a)
+    if (filter === 'early')     return !isNearMiss(a) && !isGhosted(a)
+    return true
+  })
+
+  const groups: Record<string, Application[]> = {}
+  displayed.forEach((a) => {
+    const label = stageReachedLabel(a)
+    if (!groups[label]) groups[label] = []
+    groups[label].push(a)
+  })
+
+  const groupOrder = [
+    'Final round interview','Late-round interview','Round 2 interview','Round 1 interview',
+    'Offer stage (you declined)','Recruiter screen','Role filled',
+    'Email rejection (no contact)','No response (ghosted)','Salary mismatch','Withdrew','Unknown',
+  ]
+  const sortedGroups = groupOrder
+    .filter((g) => groups[g]?.length)
+    .map((g) => ({ label: g, apps: groups[g] }))
+  Object.keys(groups).forEach((g) => {
+    if (!groupOrder.includes(g) && groups[g].length) sortedGroups.push({ label: g, apps: groups[g] })
+  })
+
+  const nearMissCount = allRejections.filter(isNearMiss).length
+  const ghostedCount  = allRejections.filter(isGhosted).length
+  const earlyCount    = allRejections.length - nearMissCount - ghostedCount
+
+  function desireStars(n: number) {
+    return '★'.repeat(n) + '☆'.repeat(5 - n)
+  }
+
+  return (
+    <div className="rej-wrap">
+      <div className="rej-chips">
+        <div className="rej-chip">
+          <span className="rej-chip-num">{allRejections.length}</span>
+          <span className="rej-chip-label">Total closed</span>
+        </div>
+        <div className="rej-chip near-miss">
+          <span className="rej-chip-num">{nearMissCount}</span>
+          <span className="rej-chip-label">Near misses (got interviews)</span>
+        </div>
+        <div className="rej-chip ghosted">
+          <span className="rej-chip-num">{ghostedCount}</span>
+          <span className="rej-chip-label">Ghosted / no response</span>
+        </div>
+        <div className="rej-chip">
+          <span className="rej-chip-num">{earlyCount}</span>
+          <span className="rej-chip-label">Early-stage rejections</span>
+        </div>
+      </div>
+
+      <div className="rej-filters">
+        {([['all','All'],['near-miss','Near misses'],['ghosted','Ghosted'],['early','Early stage']] as const).map(([val, label]) => (
+          <button
+            key={val}
+            className={`rej-filter-btn${filter === val ? ' active' : ''}`}
+            onClick={() => setFilter(val)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {displayed.length === 0 ? (
+        <div className="inbox-empty">
+          <div className="inbox-empty-icon">🎯</div>
+          <p>No rejections to show here — keep applying!</p>
+        </div>
+      ) : (
+        <div className="rej-groups">
+          {sortedGroups.map(({ label, apps }) => (
+            <div key={label} className="rej-group">
+              <div className="rej-group-header">
+                <span className="rej-group-label">{label}</span>
+                <span className="rej-group-count">{apps.length}</span>
+              </div>
+              <div className="rej-cards">
+                {apps.map((a) => (
+                  <div key={a.id} className={`rej-card${isNearMiss(a) ? ' near-miss' : ''}`}>
+                    <div className="rej-card-body">
+                      <div className="rej-card-top">
+                        <div>
+                          <strong className="rej-card-company">{a.company}</strong>
+                          <span className="rej-card-role">{a.role}</span>
+                        </div>
+                        {a.desireRank > 0 && (
+                          <span className="rej-card-stars" title={`Desire: ${a.desireRank}/5`}>
+                            {desireStars(a.desireRank)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="rej-card-meta">
+                        <span>Applied {formatDate(a.appliedOn)}</span>
+                        {a.source && <span>{a.source}</span>}
+                        {a.salary && a.salary !== 'TBD' && <span>{a.salary}</span>}
+                        {a.archiveDetail && <span className="rej-card-detail">"{a.archiveDetail}"</span>}
+                      </div>
+                    </div>
+                    <button className="ghost-button sm" onClick={() => onOpen(a.id)}>View →</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Calendar View ─────────────────────────────── */
 function CalendarView({ applications }: { applications: Application[] }) {
   const [calDate, setCalDate] = useState(new Date())
@@ -2056,7 +2273,7 @@ function viewTitle(v: View) {
   const t: Record<View, string> = {
     dashboard: 'Command Center', tracker: 'Application Tracker', pipeline: 'Pipeline Flow',
     interviews: 'Interview Schedule', calendar: 'Calendar', inbox: 'Application Inbox',
-    stats: 'Stats & Reporting', archive: 'Archive',
+    stats: 'Stats & Reporting', rejections: 'Rejection Center', archive: 'Archive',
   }
   return t[v]
 }
@@ -2070,7 +2287,8 @@ function viewSubtitle(v: View) {
     calendar:   'Interviews, follow-up dates, and offers laid out by month.',
     inbox:      'Holding queue for incoming applications. Decide what to officially track.',
     stats:      'Full picture — funnel, rejection breakdown, sources, and response rates.',
-    archive:    'Closed outcomes — track patterns and reasons over time.',
+    rejections: 'Every no — organized by how far you got. Learn the patterns.',
+    archive:    'All closed outcomes — rejections, withdrawals, and inactive roles.',
   }
   return s[v]
 }
