@@ -24,9 +24,9 @@ type Stage =
   | 'Offer declined'
   | 'Archived'
 
-type View = 'dashboard' | 'tracker' | 'pipeline' | 'interviews' | 'calendar' | 'inbox' | 'archive'
+type View = 'dashboard' | 'tracker' | 'pipeline' | 'interviews' | 'calendar' | 'inbox' | 'stats' | 'archive'
 
-type DetailTab = 'overview' | 'contact' | 'job' | 'prep' | 'offer'
+type DetailTab = 'overview' | 'contact' | 'job' | 'prep' | 'offer' | 'email'
 
 type SortField = 'company' | 'stage' | 'priority' | 'followUpOn' | 'desireRank' | 'appliedOn'
 type SortDir   = 'asc' | 'desc'
@@ -79,8 +79,9 @@ type Application = {
   notes: string
 
   /* Tracking origin */
-  sourceQueueId?: number  // links back to QueuedApp.id if this came from the queue
-  autoAdded?: boolean     // true if auto-added from a next-steps/interview email (not manual)
+  sourceQueueId?: number
+  autoAdded?: boolean
+  flagged?: boolean       // hard "I really want this one" flag (separate from desireRank)
 
   /* Offer */
   offerAmount: string
@@ -131,6 +132,13 @@ type QuickAddForm = {
 const STORAGE_KEY       = 'nextround-applications'
 const QUEUE_KEY         = 'nextround-queue'
 const GOAL_KEY          = 'nextround-weekly-goal'
+const SETTINGS_KEY      = 'nextround-settings'
+
+type UserSettings = {
+  fullName: string
+  availabilityNote: string   // free-text block, e.g. "Mon–Fri 9am–5pm CST"
+  emailSignature: string
+}
 
 const stageOptions: Stage[] = [
   'Saved', 'Application Submitted', 'Follow-Up 1', 'Follow-Up 2', 'Recruiter Screen',
@@ -237,6 +245,98 @@ const quickAddDefaults: QuickAddForm = {
   company: '', role: '', source: 'LinkedIn', salary: '', appliedOn: getTodayIso(),
 }
 
+/* ─── Email templates ───────────────────────────── */
+type EmailTemplateKey = 'followUp' | 'thankYou' | 'availability' | 'withdrawal' | 'scheduleConfirm'
+
+const EMAIL_TEMPLATES: Record<EmailTemplateKey, { label: string; description: string }> = {
+  followUp:        { label: 'Follow-up after applying',        description: 'Check in after no response for 5–7 days' },
+  thankYou:        { label: 'Thank-you after interview',       description: 'Send within 24 hours of an interview' },
+  availability:    { label: 'Send your availability',          description: 'When asked to schedule an interview' },
+  scheduleConfirm: { label: 'Confirm interview time',          description: 'Confirm a scheduled interview' },
+  withdrawal:      { label: 'Withdraw from process',           description: 'Politely exit without burning bridges' },
+}
+
+function buildEmailTemplate(
+  key: EmailTemplateKey,
+  app: Application,
+  settings: UserSettings,
+): string {
+  const { availabilityNote, emailSignature } = settings
+  const recruiterFirst = (app.recruiter || 'Hiring Team').split(' ')[0].split('/')[0].trim()
+  const company  = app.company
+  const role     = app.role
+  const interviewDateStr = app.interviewDate ? formatDateTimeStr(app.interviewDate) : ''
+
+  switch (key) {
+    case 'followUp':
+      return `Hi ${recruiterFirst},
+
+I hope you're doing well. I wanted to follow up on my application for the ${role} role at ${company}. I submitted my application on ${app.appliedOn} and wanted to reiterate my strong interest in the position.
+
+If there's any additional information I can provide or if you have any questions, please don't hesitate to reach out. I look forward to hearing from you.
+
+${emailSignature}`
+
+    case 'thankYou':
+      return `Hi ${recruiterFirst},
+
+Thank you for taking the time to speak with me${interviewDateStr ? ` on ${interviewDateStr}` : ''} about the ${role} position at ${company}. I really enjoyed our conversation and learning more about the team and the role.
+
+[ADD: 1–2 specific things from the conversation that excited you]
+
+I'm very enthusiastic about the opportunity and look forward to the next steps. Please let me know if you need anything else from me in the meantime.
+
+${emailSignature}`
+
+    case 'availability':
+      return `Hi ${recruiterFirst},
+
+Thank you for reaching out! I'm excited about the opportunity to interview for the ${role} role at ${company}.
+
+I'm available during the following times:
+
+${availabilityNote}
+
+Please feel free to send over a calendar invite for any of those windows, or let me know what works best on your end and I'll make it happen.
+
+Looking forward to connecting!
+
+${emailSignature}`
+
+    case 'scheduleConfirm':
+      return `Hi ${recruiterFirst},
+
+I wanted to confirm my upcoming interview for the ${role} position at ${company}${interviewDateStr ? ` scheduled for ${interviewDateStr}` : ''}.
+
+[ADD: video link / call-in number / address if applicable]
+
+Please let me know if anything changes. I'm looking forward to speaking with you!
+
+${emailSignature}`
+
+    case 'withdrawal':
+      return `Hi ${recruiterFirst},
+
+I hope you're well. After careful consideration, I've decided to withdraw my application for the ${role} position at ${company}.
+
+[OPTIONAL: brief, positive reason — e.g. "I've accepted a position that's a closer fit to my current goals."]
+
+I have a lot of respect for the team and the work happening at ${company}, and I hope our paths cross again in the future.
+
+Thank you for your time throughout this process.
+
+${emailSignature}`
+  }
+}
+
+function formatDateTimeStr(dt: string): string {
+  if (!dt) return ''
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  }).format(new Date(dt))
+}
+
 /* ─── SVG Icons ─────────────────────────────────── */
 const DashboardIcon = () => (
   <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
@@ -285,6 +385,15 @@ const InboxIcon = () => (
   </svg>
 )
 
+const StatsIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+    <path d="M1 12L5 7.5L8 9.5L11 5L14 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="5" cy="7.5" r="1" fill="currentColor"/>
+    <circle cx="8" cy="9.5" r="1" fill="currentColor"/>
+    <circle cx="11" cy="5" r="1" fill="currentColor"/>
+  </svg>
+)
+
 const ArchiveIcon = () => (
   <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
     <rect x="1" y="2" width="13" height="2.8" rx="1" fill="currentColor"/>
@@ -321,6 +430,18 @@ function App() {
   const [sortDir, setSortDir]             = useState<SortDir>('desc')
   const [quickAddOpen, setQuickAddOpen]   = useState(false)
   const [quickAddForm, setQuickAddForm]   = useState<QuickAddForm>(quickAddDefaults)
+  /* ── Settings ── */
+  const [settings, setSettings] = useState<UserSettings>(() => {
+    const s = localStorage.getItem(SETTINGS_KEY)
+    return s ? JSON.parse(s) : { fullName: 'Aamir Ali', availabilityNote: 'Monday–Friday, 9am–5pm CST', emailSignature: 'Best,\nAamir Ali\n972-214-4380' }
+  })
+  const [_showSettings, _setShowSettings] = useState(false)
+
+  /* ── Email composer state ── */
+  const [emailTemplate, setEmailTemplate]   = useState<EmailTemplateKey>('followUp')
+  const [emailOutput, setEmailOutput]       = useState('')
+  const [emailCopied, setEmailCopied]       = useState(false)
+
   const [showDismissed, setShowDismissed]   = useState(false)
   const [showTracked, setShowTracked]       = useState(false)
   const [showQueueForm, setShowQueueForm]   = useState(false)
@@ -350,6 +471,7 @@ function App() {
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(applications)) }, [applications])
   useEffect(() => { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)) }, [queue])
   useEffect(() => { localStorage.setItem(GOAL_KEY, String(weeklyGoal)) }, [weeklyGoal])
+  useEffect(() => { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) }, [settings])
 
   useEffect(() => {
     if (!applications.length) return
@@ -692,11 +814,12 @@ function App() {
         </div>
 
         <nav className="main-nav">
-          {(['dashboard','tracker','pipeline','interviews','calendar','inbox','archive'] as View[]).map((view) => {
+          {(['dashboard','tracker','pipeline','interviews','calendar','inbox','stats','archive'] as View[]).map((view) => {
             const icons: Record<View, React.ReactElement> = {
               dashboard: <DashboardIcon />, tracker: <TrackerIcon />,
               pipeline: <PipelineIcon />, interviews: <InterviewsIcon />,
-              calendar: <CalendarIcon />, inbox: <InboxIcon />, archive: <ArchiveIcon />,
+              calendar: <CalendarIcon />, inbox: <InboxIcon />,
+              stats: <StatsIcon />, archive: <ArchiveIcon />,
             }
             return (
               <button
@@ -944,7 +1067,7 @@ function App() {
                 </div>
 
                 <div className="detail-tabs">
-                  {(['overview','contact','job','prep','offer'] as DetailTab[]).map((tab) => (
+                  {(['overview','contact','job','prep','offer','email'] as DetailTab[]).map((tab) => (
                     <button key={tab} className={`detail-tab${detailTab === tab ? ' active' : ''}`}
                       onClick={() => setDetailTab(tab)}>
                       {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -1201,6 +1324,82 @@ function App() {
                     )}
                   </div>
                 )}
+
+                {/* ── Email composer tab ── */}
+                {detailTab === 'email' && (
+                  <div className="detail-tab-body">
+                    <div className="email-composer">
+                      <div className="email-templates-row">
+                        {(Object.entries(EMAIL_TEMPLATES) as [EmailTemplateKey, { label: string; description: string }][]).map(([k, v]) => (
+                          <button
+                            key={k}
+                            className={`email-template-chip${emailTemplate === k ? ' active' : ''}`}
+                            onClick={() => {
+                              setEmailTemplate(k)
+                              setEmailOutput(buildEmailTemplate(k, selectedApplication, settings))
+                              setEmailCopied(false)
+                            }}
+                          >
+                            {v.label}
+                          </button>
+                        ))}
+                      </div>
+                      {emailOutput ? (
+                        <>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+                            {EMAIL_TEMPLATES[emailTemplate].description} — edit before sending.
+                          </p>
+                          <textarea
+                            className="email-output"
+                            value={emailOutput}
+                            onChange={(e) => setEmailOutput(e.target.value)}
+                          />
+                          <div className="email-actions">
+                            <button
+                              className={`ghost-button${emailCopied ? ' success' : ''}`}
+                              onClick={() => {
+                                navigator.clipboard.writeText(emailOutput)
+                                setEmailCopied(true)
+                                setTimeout(() => setEmailCopied(false), 2500)
+                              }}
+                            >
+                              {emailCopied ? '✓ Copied!' : 'Copy to clipboard'}
+                            </button>
+                            <a
+                              className="ghost-button"
+                              href={`mailto:${selectedApplication.recruiterContact || ''}?subject=Re: ${selectedApplication.role} at ${selectedApplication.company}&body=${encodeURIComponent(emailOutput)}`}
+                              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                            >
+                              Open in email client →
+                            </a>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="empty">Select a template above to generate an email pre-filled with this application's details.</p>
+                      )}
+                    </div>
+
+                    <div className="section-divider" />
+                    <span className="section-label">Your availability (used in scheduling template)</span>
+                    <label className="notes-field">
+                      <textarea
+                        value={settings.availabilityNote}
+                        onChange={(e) => setSettings((s) => ({ ...s, availabilityNote: e.target.value }))}
+                        style={{ minHeight: '60px' }}
+                        placeholder="e.g. Monday–Friday, 9am–5pm CST. Prefer mornings."
+                      />
+                    </label>
+                    <label className="form-label">Email signature
+                      <textarea
+                        value={settings.emailSignature}
+                        onChange={(e) => setSettings((s) => ({ ...s, emailSignature: e.target.value }))}
+                        style={{ minHeight: '56px' }}
+                        placeholder="Best,&#10;Your Name&#10;Phone"
+                      />
+                    </label>
+                  </div>
+                )}
+
               </article>
             )}
           </section>
@@ -1262,6 +1461,11 @@ function App() {
           <div className="panel-card">
             <CalendarView applications={activeApplications} />
           </div>
+        )}
+
+        {/* ─── Stats / Reporting ─── */}
+        {activeView === 'stats' && (
+          <StatsView applications={applications} />
         )}
 
         {/* ─── Inbox / Queue ─── */}
@@ -1567,6 +1771,216 @@ function SortCol({ field, label, curr, dir, onSort }: {
 }
 
 /* ─── Calendar View ─────────────────────────────── */
+/* ─── Stats View ────────────────────────────────── */
+function StatsView({ applications }: { applications: Application[] }) {
+  const active   = applications.filter((a) => a.stage !== 'Archived')
+  const archived = applications.filter((a) => a.stage === 'Archived')
+  const total    = applications.length
+
+  /* Funnel stages */
+  const funnelStages = [
+    { label: 'Applied',          count: applications.filter((a) => ['Saved','Application Submitted','Follow-Up 1','Follow-Up 2','Waiting on response'].includes(a.stage)).length },
+    { label: 'Recruiter Screen', count: applications.filter((a) => a.stage === 'Recruiter Screen').length },
+    { label: 'Round 1',          count: applications.filter((a) => ['Scheduled 1st Interview','Completed 1st Interview'].includes(a.stage)).length },
+    { label: 'Round 2',          count: applications.filter((a) => ['Scheduled 2nd Interview','Completed 2nd Interview'].includes(a.stage)).length },
+    { label: 'Round 3+',         count: applications.filter((a) => ['Scheduled 3rd Interview','Completed 3rd Interview','Scheduled 4th Interview','Completed 4th Interview'].includes(a.stage)).length },
+    { label: 'Offer',            count: applications.filter((a) => ['Offer made','Offer accepted','Offer declined'].includes(a.stage)).length },
+  ]
+  const funnelMax = Math.max(funnelStages[0].count, 1)
+
+  /* Rejections */
+  const rejectionReasons = archiveReasonsConst.filter((r) => r.toLowerCase().includes('reject') || r === 'Email rejection')
+  const rejectedApps = archived.filter((a) =>
+    rejectionReasons.some((r) => a.archiveReason?.includes(r)) ||
+    a.archiveReason?.toLowerCase().includes('reject')
+  )
+  const noResponseApps = applications.filter((a) => a.stage === 'No response')
+  const totalRejections = rejectedApps.length + noResponseApps.length
+
+  /* Rejection by stage */
+  const rejByStage = [
+    { label: 'No response / ghosted',    count: noResponseApps.length },
+    { label: 'Rejected after screen',    count: archived.filter((a) => a.archiveReason === 'Rejected after recruiter screen').length },
+    { label: 'Rejected after Round 1',   count: archived.filter((a) => a.archiveReason === 'Rejected after 1st round').length },
+    { label: 'Rejected after final',     count: archived.filter((a) => a.archiveReason === 'Rejected after final round').length },
+    { label: 'Email rejection',          count: archived.filter((a) => a.archiveReason === 'Email rejection').length },
+    { label: 'Role filled / other',      count: archived.filter((a) => ['Role filled','Salary mismatch','Other'].includes(a.archiveReason)).length },
+  ].filter((r) => r.count > 0)
+
+  /* By source */
+  const sourceMap: Record<string, number> = {}
+  applications.forEach((a) => {
+    const s = a.source || 'Other'
+    sourceMap[s] = (sourceMap[s] ?? 0) + 1
+  })
+  const sourceMax = Math.max(...Object.values(sourceMap), 1)
+
+  /* Response rate */
+  const gotResponse = applications.filter((a) =>
+    !['Saved','Application Submitted','Waiting on response'].includes(a.stage)
+  ).length
+  const responseRate = total > 0 ? Math.round((gotResponse / total) * 100) : 0
+
+  /* Next steps count (ever got past applied) */
+  const nextStepsCount = applications.filter((a) =>
+    stageOptions.indexOf(a.stage) >= stageOptions.indexOf('Recruiter Screen')
+  ).length
+
+  return (
+    <div className="stats-wrap">
+
+      {/* Overview chips */}
+      <div className="stats-chips">
+        <div className="stats-chip">
+          <span className="stats-chip-num">{total}</span>
+          <span className="stats-chip-label">Total applied</span>
+        </div>
+        <div className="stats-chip">
+          <span className="stats-chip-num">{active.length}</span>
+          <span className="stats-chip-label">Still active</span>
+        </div>
+        <div className="stats-chip accent">
+          <span className="stats-chip-num">{nextStepsCount}</span>
+          <span className="stats-chip-label">Got next steps</span>
+        </div>
+        <div className="stats-chip warn">
+          <span className="stats-chip-num">{totalRejections}</span>
+          <span className="stats-chip-label">Rejections</span>
+        </div>
+        <div className="stats-chip ok">
+          <span className="stats-chip-num">{applications.filter((a) => ['Offer made','Offer accepted'].includes(a.stage)).length}</span>
+          <span className="stats-chip-label">Offers received</span>
+        </div>
+        <div className="stats-chip">
+          <span className="stats-chip-num">{responseRate}%</span>
+          <span className="stats-chip-label">Response rate</span>
+        </div>
+      </div>
+
+      <div className="stats-grid">
+
+        {/* Funnel */}
+        <div className="panel-card stats-panel">
+          <h3>Application funnel</h3>
+          <div className="funnel-chart">
+            {funnelStages.map((s, i) => {
+              const pct = Math.round((s.count / funnelMax) * 100)
+              const conv = i > 0 && funnelStages[i-1].count > 0
+                ? Math.round((s.count / funnelStages[i-1].count) * 100)
+                : null
+              return (
+                <div key={s.label} className="funnel-row">
+                  <span className="funnel-label">{s.label}</span>
+                  <div className="funnel-bar-track">
+                    <div className="funnel-bar-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="funnel-count">{s.count}</span>
+                  {conv !== null && (
+                    <span className="funnel-conv" title="conversion from previous stage">
+                      {conv}%
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {total === 0 && <p className="empty">No data yet — add applications to see your funnel.</p>}
+        </div>
+
+        {/* Rejection breakdown */}
+        <div className="panel-card stats-panel">
+          <h3>Rejection breakdown</h3>
+          {totalRejections === 0 ? (
+            <p className="empty">No rejections logged yet.</p>
+          ) : (
+            <>
+              <div className="rejection-list">
+                {rejByStage.map((r) => (
+                  <div key={r.label} className="rejection-row">
+                    <span className="rejection-label">{r.label}</span>
+                    <div className="rejection-bar-track">
+                      <div className="rejection-bar-fill"
+                        style={{ width: `${Math.round((r.count / totalRejections) * 100)}%` }} />
+                    </div>
+                    <span className="rejection-count">{r.count}</span>
+                  </div>
+                ))}
+              </div>
+              {rejectedApps.length > 0 && (
+                <>
+                  <p className="section-label" style={{ marginTop: '12px' }}>Recent rejections</p>
+                  <div className="list-stack" style={{ marginTop: '6px' }}>
+                    {rejectedApps.slice(0, 5).map((a) => (
+                      <div key={a.id} className="list-item" style={{ cursor: 'default', padding: '7px 11px' }}>
+                        <div>
+                          <strong>{a.company}</strong>
+                          <p>{a.role}</p>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{a.archiveReason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* By source */}
+        <div className="panel-card stats-panel">
+          <h3>Applications by source</h3>
+          {Object.keys(sourceMap).length === 0 ? (
+            <p className="empty">No data yet.</p>
+          ) : (
+            <div className="funnel-chart">
+              {Object.entries(sourceMap).sort((a, b) => b[1] - a[1]).map(([source, count]) => (
+                <div key={source} className="funnel-row">
+                  <span className="funnel-label">{source}</span>
+                  <div className="funnel-bar-track">
+                    <div className="funnel-bar-fill blue" style={{ width: `${Math.round((count / sourceMax) * 100)}%` }} />
+                  </div>
+                  <span className="funnel-count">{count}</span>
+                  <span className="funnel-conv">{Math.round((count / total) * 100)}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Round-by-round */}
+        <div className="panel-card stats-panel">
+          <h3>Interview rounds reached</h3>
+          <div className="rounds-list">
+            {[
+              { label: 'Recruiter Screen',    count: applications.filter((a) => stageOptions.indexOf(a.stage) >= stageOptions.indexOf('Recruiter Screen')).length },
+              { label: '1st Round Interview', count: applications.filter((a) => stageOptions.indexOf(a.stage) >= stageOptions.indexOf('Scheduled 1st Interview')).length },
+              { label: '2nd Round Interview', count: applications.filter((a) => stageOptions.indexOf(a.stage) >= stageOptions.indexOf('Scheduled 2nd Interview')).length },
+              { label: '3rd Round+',          count: applications.filter((a) => stageOptions.indexOf(a.stage) >= stageOptions.indexOf('Scheduled 3rd Interview')).length },
+              { label: 'Offer received',      count: applications.filter((a) => ['Offer made','Offer accepted','Offer declined'].includes(a.stage)).length },
+              { label: 'Offer accepted',      count: applications.filter((a) => a.stage === 'Offer accepted').length },
+            ].map((r) => (
+              <div key={r.label} className="rounds-row">
+                <span className="rounds-label">{r.label}</span>
+                <span className="rounds-count">{r.count}</span>
+                <span className="rounds-pct">{total > 0 ? `${Math.round((r.count / total) * 100)}% of all` : '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+/* Archive reasons constant (used in StatsView) */
+const archiveReasonsConst = [
+  'Email rejection', 'Rejected after recruiter screen', 'Rejected after 1st round',
+  'Rejected after final round', 'Role filled', 'Salary mismatch',
+  'Withdrew', 'No longer interested', 'Unable to contact', 'Offer declined', 'Other',
+]
+
+/* ─── Calendar View ─────────────────────────────── */
 function CalendarView({ applications }: { applications: Application[] }) {
   const [calDate, setCalDate] = useState(new Date())
   const year = calDate.getFullYear()
@@ -1641,7 +2055,8 @@ function CalendarView({ applications }: { applications: Application[] }) {
 function viewTitle(v: View) {
   const t: Record<View, string> = {
     dashboard: 'Command Center', tracker: 'Application Tracker', pipeline: 'Pipeline Flow',
-    interviews: 'Interview Schedule', calendar: 'Calendar', inbox: 'Application Inbox', archive: 'Archive',
+    interviews: 'Interview Schedule', calendar: 'Calendar', inbox: 'Application Inbox',
+    stats: 'Stats & Reporting', archive: 'Archive',
   }
   return t[v]
 }
@@ -1654,6 +2069,7 @@ function viewSubtitle(v: View) {
     interviews: 'Every scheduled interview. Click any row to open its prep notes.',
     calendar:   'Interviews, follow-up dates, and offers laid out by month.',
     inbox:      'Holding queue for incoming applications. Decide what to officially track.',
+    stats:      'Full picture — funnel, rejection breakdown, sources, and response rates.',
     archive:    'Closed outcomes — track patterns and reasons over time.',
   }
   return s[v]

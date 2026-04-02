@@ -731,6 +731,122 @@ textarea { min-height: 86px; resize: vertical; }
 /* ─── Interviews view ───────────────────────────── */
 .interviews-table { overflow: hidden; }
 
+/* ─── Stats view ────────────────────────────────── */
+.stats-wrap { display: flex; flex-direction: column; gap: 24px; }
+
+.stats-chips {
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.stats-chip {
+  flex: 1 1 120px; min-width: 110px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stats-chip.accent { border-color: rgba(55,215,200,0.3); background: var(--brand-dim); }
+.stats-chip.warn   { border-color: rgba(240,180,41,0.3);  background: var(--warn-dim); }
+.stats-chip.ok     { border-color: rgba(52,211,153,0.3);  background: var(--ok-dim); }
+
+.stats-chip-num   { font-size: 1.6rem; font-weight: 700; line-height: 1; color: var(--text); }
+.stats-chip-label { font-size: 0.73rem; color: var(--muted); }
+.stats-chip.accent .stats-chip-num { color: var(--brand); }
+.stats-chip.warn   .stats-chip-num { color: var(--warn); }
+.stats-chip.ok     .stats-chip-num { color: var(--ok); }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.stats-panel { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.stats-panel h3 { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+
+/* Funnel / bar charts */
+.funnel-chart { display: flex; flex-direction: column; gap: 8px; }
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 36px 40px;
+  align-items: center; gap: 8px;
+}
+.funnel-label  { font-size: 0.74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.funnel-count  { font-size: 0.75rem; font-weight: 600; color: var(--text); text-align: right; }
+.funnel-conv   { font-size: 0.68rem; color: var(--brand); text-align: right; }
+
+.funnel-bar-track {
+  height: 8px; background: rgba(255,255,255,0.06);
+  border-radius: 4px; overflow: hidden;
+}
+.funnel-bar-fill {
+  height: 100%; background: var(--brand); border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.funnel-bar-fill.blue { background: var(--blue); }
+
+/* Rejection bars */
+.rejection-list { display: flex; flex-direction: column; gap: 8px; }
+.rejection-row  {
+  display: grid;
+  grid-template-columns: 140px 1fr 32px;
+  align-items: center; gap: 8px;
+}
+.rejection-label { font-size: 0.74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rejection-count { font-size: 0.75rem; font-weight: 600; color: var(--danger); text-align: right; }
+
+.rejection-bar-track {
+  height: 8px; background: rgba(255,255,255,0.06);
+  border-radius: 4px; overflow: hidden;
+}
+.rejection-bar-fill {
+  height: 100%; background: var(--danger); border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Rounds list */
+.rounds-list { display: flex; flex-direction: column; gap: 6px; }
+.rounds-row  {
+  display: grid; grid-template-columns: 1fr 36px 80px;
+  align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 6px;
+  background: rgba(255,255,255,0.025);
+}
+.rounds-label { font-size: 0.78rem; color: var(--text); }
+.rounds-count { font-size: 0.78rem; font-weight: 700; color: var(--brand); text-align: center; }
+.rounds-pct   { font-size: 0.72rem; color: var(--muted); text-align: right; }
+
+/* ─── Email composer ────────────────────────────── */
+.email-composer { display: flex; flex-direction: column; gap: 12px; }
+
+.email-templates-row {
+  display: flex; flex-wrap: wrap; gap: 7px;
+}
+.email-template-chip {
+  background: var(--card-2); border: 1px solid var(--border);
+  color: var(--muted); font-size: 0.76rem; font-weight: 500;
+  padding: 5px 12px; border-radius: 20px; cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.email-template-chip:hover {
+  border-color: var(--border-hover); color: var(--text);
+}
+.email-template-chip.active {
+  background: var(--brand-dim); border-color: rgba(55,215,200,0.4);
+  color: var(--brand);
+}
+
+.email-output {
+  width: 100%; min-height: 200px; resize: vertical;
+  background: var(--card-2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-family: 'Inter', sans-serif;
+  font-size: 0.8rem; line-height: 1.6; padding: 12px 14px;
+  outline: none; transition: border-color 0.12s;
+}
+.email-output:focus { border-color: var(--brand); }
+
+.email-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+
 /* ─── Responsive ────────────────────────────────── */
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 1fr; }
