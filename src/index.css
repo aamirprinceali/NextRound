@@ -1,71 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+@import "tailwindcss";
+
 :root {
-  color: #141821;
-  background:
-    radial-gradient(circle at top, #ffe6d7 0%, rgba(255, 230, 215, 0) 24%),
-    linear-gradient(180deg, #fff9f2 0%, #f2efe8 100%);
-  font-family:
-    "Avenir Next",
-    "Segoe UI",
-    sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  /* Backgrounds */
+  --bg:           #08090D;
+  --bg-soft:      #0D0E14;
+  --surface:      #10111A;
+  --surface-2:    #171825;
+  --surface-3:    #1E1F2E;
+
+  /* Borders */
+  --border:       rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.13);
+  --border-active:rgba(126, 232, 162, 0.35);
+
+  /* Text */
+  --text:         #EEEEF5;
+  --text-soft:    #A8ABBE;
+  --muted:        #5F6B7A;
+
+  /* Brand — jade green (growth, forward motion) */
+  --brand:        #7EE8A2;
+  --brand-dim:    rgba(126, 232, 162, 0.10);
+  --brand-hover:  rgba(126, 232, 162, 0.18);
+
+  /* Gold — achievements, goals, celebrations */
+  --gold:         #FBBF24;
+  --gold-dim:     rgba(251, 191, 36, 0.12);
+
+  /* Blue — info, links, secondary actions */
+  --blue:         #60A5FA;
+  --blue-dim:     rgba(96, 165, 250, 0.12);
+
+  /* Status colors */
+  --success:      #4ADE80;
+  --success-dim:  rgba(74, 222, 128, 0.12);
+  --warning:      #FB923C;
+  --warning-dim:  rgba(251, 146, 60, 0.12);
+  --danger:       #F87171;
+  --danger-dim:   rgba(248, 113, 113, 0.10);
+  --purple:       #A78BFA;
+  --purple-dim:   rgba(167, 139, 250, 0.12);
+
+  /* Typography */
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  --text: #141821;
-  --muted-strong: #4b5466;
-  --muted: #6f7789;
-  --border: rgba(20, 24, 33, 0.12);
-  --panel: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.62));
-  --shadow:
-    0 20px 50px rgba(17, 20, 31, 0.08),
-    0 3px 12px rgba(17, 20, 31, 0.04);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
-  min-width: 320px;
   min-height: 100vh;
+  background: var(--bg);
   color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(248, 117, 55, 0.12), transparent 22%),
-    radial-gradient(circle at top right, rgba(86, 172, 232, 0.12), transparent 24%),
-    linear-gradient(180deg, #fff9f2 0%, #f3eee6 100%);
+  font-family: var(--font-body);
 }
 
-button,
-input,
-select,
-textarea {
-  border: none;
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  margin: 0;
 }
 
-button {
-  cursor: pointer;
-}
+p { margin: 0; }
 
-h1,
-h2,
-h3,
-h4,
-p {
-  margin-top: 0;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
 
-a {
-  color: inherit;
-}
+/* Selection */
+::selection { background: var(--brand-dim); color: var(--brand); }
 
-#root {
-  min-height: 100vh;
-}
+/* Base resets */
+button { cursor: pointer; }
+a { color: inherit; }
+input, textarea, select { font-family: var(--font-body); }
+#root { min-height: 100vh; }
