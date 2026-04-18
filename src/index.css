@@ -82,3 +82,38 @@ button { cursor: pointer; }
 a { color: inherit; }
 input, textarea, select { font-family: var(--font-body); }
 #root { min-height: 100vh; }
+
+/* ── Premium texture overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+#root { position: relative; z-index: 1; }
+
+/* ── Card hover glow ── */
+.card-glow:hover {
+  border-color: rgba(126, 232, 162, 0.15) !important;
+  box-shadow: 0 0 0 1px rgba(126, 232, 162, 0.08), 0 4px 20px rgba(0,0,0,0.3);
+}
+
+/* ── Button press animation ── */
+button:active { transform: scale(0.97); }
+
+/* ── Stage pill animation ── */
+.stage-pill { transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.stage-pill:hover { transform: scale(1.04); }
+
+/* ── Subtle grid pattern for empty states ── */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
+}

@@ -1,16 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Kanban, CalendarDays, BarChart2, XCircle,
-  FileText, Archive, Settings as SettingsIcon, Plus,
+  CalendarDays,
+  FileText, Archive, Plus,
   Search, Flag, ChevronDown, ChevronUp,
-  Copy, ExternalLink, X, Check,
-  Save
+  Copy, ExternalLink, X, Check, CheckCircle,
+  Save, ArrowRight
 } from 'lucide-react'
 
 import { Sidebar } from './components/layout/Sidebar'
 import { Dashboard } from './components/dashboard/Dashboard'
 import { HuntActivationModal } from './components/hunt/HuntActivationModal'
+import { PrepRoom } from './components/prep/PrepRoom'
+import { CalendarView } from './components/calendar/CalendarView'
 
 import type {
   Application, QueuedApp, HuntSession, UserSettings,
@@ -25,7 +28,33 @@ import {
   loadCareerStats, saveCareerStats,
 } from './utils/storage'
 import { STAGE_CONFIG, SUB_STAGES, IN_PLAY_STAGES, STAGE_ORDER } from './utils/stages'
-import { getTodayIso, formatDate } from './utils/dates'
+import { getTodayIso, formatDate, formatDateShort, formatDateTime, daysUntil, isSameWeek } from './utils/dates'
+
+// ─── Dropdown Portal — renders dropdown outside DOM tree to escape overflow:hidden ──
+function DropdownPortal({
+  triggerRef,
+  children,
+}: {
+  triggerRef: React.RefObject<HTMLDivElement | null>
+  children: React.ReactNode
+}) {
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    setCoords({ top: rect.bottom + 6, left: rect.left })
+  }, [triggerRef])
+
+  if (!coords) return null
+
+  return createPortal(
+    <div style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }}>
+      {children}
+    </div>,
+    document.body
+  )
+}
 
 // ─── Email template logic (preserved from original) ───────────────────────────
 type EmailTemplateKey = 'followUp' | 'thankYou' | 'availability' | 'withdrawal' | 'scheduleConfirm'
@@ -122,39 +151,56 @@ function StageSelector({
 }) {
   const [open, setOpen] = useState(false)
   const subOptions = SUB_STAGES[stage] ?? []
+  const cfg = STAGE_CONFIG[stage]
+
+  // Close on outside click
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={e => { e.stopPropagation(); setOpen(!open) }}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 10px', borderRadius: 99, border: 'none',
-          cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 11,
-          color: STAGE_CONFIG[stage].color,
-          background: STAGE_CONFIG[stage].bg,
+          padding: '4px 8px 4px 10px', borderRadius: 8, border: 'none',
+          cursor: 'pointer', fontFamily: 'var(--font-body)',
+          color: cfg.color, background: cfg.bg,
           transition: 'opacity 0.15s',
         }}
       >
-        {STAGE_CONFIG[stage].label}
-        {subStage && <span style={{ opacity: 0.7 }}>· {subStage}</span>}
-        <ChevronDown size={11} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+          <span style={{ fontWeight: 600, fontSize: 11, lineHeight: 1.2 }}>{cfg.label}</span>
+          {subStage && (
+            <span style={{ fontSize: 9, opacity: 0.75, fontWeight: 500, lineHeight: 1.1, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {subStage}
+            </span>
+          )}
+        </div>
+        <ChevronDown size={10} style={{ flexShrink: 0 }} />
       </button>
 
       <AnimatePresence>
         {open && (
+          <DropdownPortal triggerRef={ref}>
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
             style={{
-              position: 'absolute', top: 'calc(100% + 6px)', left: 0,
               background: 'var(--surface-2)',
               border: '1px solid var(--border)',
               borderRadius: 10, padding: 6,
-              zIndex: 100, minWidth: 180,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              minWidth: 200, maxHeight: 360, overflowY: 'auto',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
             }}
           >
             {/* Main stages */}
@@ -211,6 +257,7 @@ function StageSelector({
               </>
             )}
           </motion.div>
+          </DropdownPortal>
         )}
       </AnimatePresence>
     </div>
@@ -219,26 +266,31 @@ function StageSelector({
 
 // ─── Quick Add Modal ───────────────────────────────────────────────────────────
 function QuickAddModal({
-  open, onClose, onAdd
+  open, onClose, onAdd, defaultStage = 'Applied'
 }: {
   open: boolean
   onClose: () => void
   onAdd: (app: Application) => void
+  defaultStage?: MainStage
 }) {
-  const [form, setForm] = useState({ company: '', role: '', source: 'LinkedIn', salary: '', appliedOn: getTodayIso(), note: '' })
+  const [form, setForm] = useState({ company: '', role: '', source: 'LinkedIn', salary: '', appliedOn: getTodayIso(), note: '', stage: defaultStage })
   const [saving, setSaving] = useState(false)
+
+  // Reset form stage when defaultStage changes (e.g. opening from tracker vs applied)
+  useEffect(() => { setForm(f => ({ ...f, stage: defaultStage })) }, [defaultStage, open])
 
   function handleAdd() {
     if (!form.company.trim()) return
     setSaving(true)
     const app = newBlankApp({
       ...form,
+      stage: form.stage as MainStage,
       quickAddNote: form.note,
-      history: [createHistoryEntry('Applied', `Added via quick add${form.note ? ': ' + form.note : ''}`, 'Applied')],
+      history: [createHistoryEntry(form.stage, `Added via quick add${form.note ? ': ' + form.note : ''}`, 'Applied')],
     })
     setTimeout(() => {
       onAdd(app)
-      setForm({ company: '', role: '', source: 'LinkedIn', salary: '', appliedOn: getTodayIso(), note: '' })
+      setForm({ company: '', role: '', source: 'LinkedIn', salary: '', appliedOn: getTodayIso(), note: '', stage: defaultStage })
       setSaving(false)
       onClose()
     }, 300)
@@ -317,17 +369,33 @@ function QuickAddModal({
                 onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
             </div>
           </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick Note (optional)</label>
-            <textarea
-              value={form.note}
-              onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-              placeholder="e.g. Referred by John, strong fit for ops role"
-              rows={2}
-              style={{ ...inputStyle, resize: 'vertical' }}
-              onFocus={e => (e.target.style.borderColor = 'rgba(126,232,162,0.4)')}
-              onBlur={e => (e.target.style.borderColor = 'var(--border)')}
-            />
+          {/* Stage selector — shown when adding directly to tracker */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Add To Stage</label>
+              <select
+                value={form.stage}
+                onChange={e => setForm(f => ({ ...f, stage: e.target.value as MainStage }))}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                <option value="Applied">Applied (staging)</option>
+                {IN_PLAY_STAGES.map(s => (
+                  <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick Note (optional)</label>
+              <textarea
+                value={form.note}
+                onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                placeholder="Any notes..."
+                rows={1}
+                style={{ ...inputStyle, resize: 'none' }}
+                onFocus={e => (e.target.style.borderColor = 'rgba(126,232,162,0.4)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+              />
+            </div>
           </div>
         </div>
 
@@ -355,11 +423,12 @@ function QuickAddModal({
 
 // ─── Tracker View ──────────────────────────────────────────────────────────────
 function TrackerView({
-  applications, onUpdate, onSelect
+  applications, onUpdate, onSelect, onQuickAdd
 }: {
   applications: Application[]
   onUpdate: (apps: Application[]) => void
   onSelect: (id: number) => void
+  onQuickAdd: () => void
 }) {
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState<MainStage | 'all'>('all')
@@ -409,7 +478,7 @@ function TrackerView({
   return (
     <div style={{ padding: '28px 32px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
             In Play
@@ -418,6 +487,17 @@ function TrackerView({
             {inPlay.length} active application{inPlay.length !== 1 ? 's' : ''} in your pipeline
           </div>
         </div>
+        <button
+          onClick={onQuickAdd}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '9px 16px', borderRadius: 8, border: 'none',
+            background: 'var(--brand)', color: '#08090D',
+            fontSize: 13, fontFamily: 'var(--font-body)', fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          <Plus size={14} /> Add Position
+        </button>
       </div>
 
       {/* Filters */}
@@ -565,17 +645,24 @@ function TrackerView({
 
 // ─── Applied View (staging tier) ──────────────────────────────────────────────
 function AppliedView({
-  queue, applications, onQueueUpdate, onPromote, onQuickAdd
+  queue, applications, onQueueUpdate, onPromote, onMoveToTracker, onQuickAdd, onSelect
 }: {
   queue: QueuedApp[]
   applications: Application[]
   onQueueUpdate: (q: QueuedApp[]) => void
   onPromote: (qId: number) => void
+  onMoveToTracker: (appId: number, stage: MainStage) => void
   onQuickAdd: () => void
+  onSelect: (id: number) => void
 }) {
   const pending = queue.filter(q => q.status === 'pending')
   const allApplied = applications.filter(a => a.stage === 'Applied')
   const totalApplied = pending.length + allApplied.length
+
+  const rowBtn: React.CSSProperties = {
+    padding: '5px 11px', borderRadius: 6, fontSize: 12,
+    fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', border: 'none',
+  }
 
   return (
     <div style={{ padding: '28px 32px' }}>
@@ -601,23 +688,28 @@ function AppliedView({
         </button>
       </div>
 
-      {/* Queue items (pending) */}
+      {/* Queue items (pending from email) */}
       {pending.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-            Pending — {pending.length} in queue
+            Inbox Queue — {pending.length} pending
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pending.map(item => (
-              <div key={item.id} style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 10, padding: '14px 16px',
-                display: 'flex', alignItems: 'center', gap: 14,
-              }}>
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 10, padding: '14px 16px',
+                  display: 'flex', alignItems: 'center', gap: 14,
+                }}
+              >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{item.company}</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                    {item.role} · {item.source} · {formatDate(item.receivedOn)}
+                    {item.role || 'Role TBD'} · {item.source} · {formatDate(item.receivedOn)}
                   </div>
                   {item.snippet && (
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -626,34 +718,23 @@ function AppliedView({
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button
-                    onClick={() => onPromote(item.id)}
-                    style={{
-                      padding: '6px 12px', borderRadius: 6, border: 'none',
-                      background: 'var(--brand-dim)', color: 'var(--brand)',
-                      fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer',
-                    }}
-                  >
+                  <button onClick={() => onPromote(item.id)} style={{ ...rowBtn, background: 'var(--brand-dim)', color: 'var(--brand)' }}>
                     Track this →
                   </button>
                   <button
                     onClick={() => onQueueUpdate(queue.map(q => q.id === item.id ? { ...q, status: 'dismissed' } : q))}
-                    style={{
-                      padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
-                      background: 'transparent', color: 'var(--muted)',
-                      fontSize: 12, fontFamily: 'var(--font-body)', cursor: 'pointer',
-                    }}
+                    style={{ ...rowBtn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)' }}
                   >
                     Dismiss
                   </button>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       )}
 
-      {/* All applied applications */}
+      {/* All manually-added / applied applications */}
       {allApplied.length > 0 && (
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
@@ -661,28 +742,826 @@ function AppliedView({
           </div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             {allApplied.map((app, i) => (
-              <div key={app.id} style={{
-                display: 'flex', alignItems: 'center', gap: 14,
-                padding: '12px 16px',
-                borderBottom: i < allApplied.length - 1 ? '1px solid var(--border)' : 'none',
-              }}>
+              <motion.div
+                key={app.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.03 }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '12px 16px',
+                  borderBottom: i < allApplied.length - 1 ? '1px solid var(--border)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.1s',
+                }}
+                onHoverStart={e => (e.target as HTMLElement).style?.setProperty?.('', '')}
+                onClick={() => onSelect(app.id)}
+                whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+              >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{app.company}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{app.role} · {app.source} · {formatDate(app.appliedOn)}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {app.role || '—'} · {app.source} · {formatDate(app.appliedOn)}
+                  </div>
+                  {app.quickAddNote && (
+                    <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 2, fontStyle: 'italic' }}>
+                      {app.quickAddNote}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>{app.salary || '—'}</div>
-              </div>
+                <div style={{ fontSize: 12, color: 'var(--text-soft)', marginRight: 8 }}>{app.salary || '—'}</div>
+                {/* Move to tracker — pick initial in-play stage */}
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                  <select
+                    defaultValue=""
+                    onChange={e => {
+                      if (e.target.value) {
+                        onMoveToTracker(app.id, e.target.value as MainStage)
+                        e.target.value = ''
+                      }
+                    }}
+                    style={{
+                      padding: '5px 8px', borderRadius: 6, fontSize: 12,
+                      background: 'var(--surface-2)', border: '1px solid var(--border)',
+                      color: 'var(--brand)', fontFamily: 'var(--font-body)',
+                      cursor: 'pointer', outline: 'none',
+                    }}
+                  >
+                    <option value="" disabled>Move to tracker →</option>
+                    <option value="Screening">→ Screening</option>
+                    <option value="Assessment">→ Assessment</option>
+                    <option value="Interviewing">→ Interviewing</option>
+                  </select>
+                </div>
+              </motion.div>
             ))}
           </div>
         </div>
       )}
 
       {totalApplied === 0 && (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
-          <div style={{ fontSize: 16, marginBottom: 8 }}>No applications yet.</div>
-          <div style={{ fontSize: 13 }}>Hit Quick Add to log your first one, or connect your email to auto-import.</div>
+        <div className="grid-bg" style={{ textAlign: 'center', padding: '80px 0', borderRadius: 12, border: '1px dashed var(--border)' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+          <div style={{ fontSize: 16, color: 'var(--text-soft)', marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 600 }}>No applications yet.</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Hit Quick Add to log your first one.</div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Pipeline (Kanban) View ────────────────────────────────────────────────────
+function PipelineView({
+  applications, onSelect
+}: {
+  applications: Application[]
+  onSelect: (id: number) => void
+}) {
+  const inPlay = applications.filter(a => IN_PLAY_STAGES.includes(a.stage))
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+            Pipeline
+          </h1>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+            {inPlay.length} active application{inPlay.length !== 1 ? 's' : ''} in play
+          </div>
+        </div>
+        {/* Stage summary chips — quick count per stage */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {IN_PLAY_STAGES.map(stage => {
+            const count = applications.filter(a => a.stage === stage).length
+            const cfg = STAGE_CONFIG[stage]
+            return (
+              <div key={stage} style={{
+                padding: '4px 10px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+                background: count > 0 ? cfg.bg : 'rgba(255,255,255,0.03)',
+                color: count > 0 ? cfg.color : 'var(--muted)',
+                border: `1px solid ${count > 0 ? cfg.color + '30' : 'var(--border)'}`,
+              }}>
+                {cfg.label} {count > 0 && <span style={{ fontWeight: 700 }}>{count}</span>}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Scrollable kanban — fade on right edge hints there's more */}
+      <div style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 16, paddingRight: 32 }}>
+        {IN_PLAY_STAGES.map(stage => {
+          const cfg = STAGE_CONFIG[stage]
+          const cols = applications.filter(a => a.stage === stage)
+          return (
+            <div key={stage} style={{ minWidth: 240, flex: '0 0 240px' }}>
+              {/* Column header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 12px', marginBottom: 10,
+                background: cfg.bg, borderRadius: 8,
+                border: `1px solid ${cfg.color}30`,
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  {cfg.label}
+                </span>
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  background: cfg.color, color: '#08090D',
+                  padding: '1px 7px', borderRadius: 99,
+                }}>
+                  {cols.length}
+                </span>
+              </div>
+
+              {/* Cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {cols.length === 0 && (
+                  <div style={{
+                    padding: '20px 12px', textAlign: 'center',
+                    border: '1px dashed var(--border)', borderRadius: 8,
+                    color: 'var(--muted)', fontSize: 12,
+                  }}>
+                    None here
+                  </div>
+                )}
+                {cols.map(app => (
+                  <motion.div
+                    key={app.id}
+                    layoutId={`card-${app.id}`}
+                    whileHover={{ y: -2, boxShadow: `0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px ${cfg.color}20` }}
+                    onClick={() => onSelect(app.id)}
+                    style={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10, padding: '12px 14px',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.15s',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 3 }}>
+                      {app.company}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {app.role || '—'}
+                    </div>
+                    {app.subStage && (
+                      <div style={{ fontSize: 10, color: cfg.color, fontWeight: 600, marginBottom: 6 }}>
+                        {app.subStage}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      {app.salary ? (
+                        <span style={{ fontSize: 11, color: 'var(--brand)', fontWeight: 500 }}>{app.salary}</span>
+                      ) : <span />}
+                      <span style={{
+                        fontSize: 10, fontWeight: 700,
+                        padding: '2px 7px', borderRadius: 99,
+                        background: app.priority === 'High' ? 'var(--danger-dim)' : app.priority === 'Medium' ? 'var(--gold-dim)' : 'rgba(255,255,255,0.05)',
+                        color: app.priority === 'High' ? 'var(--danger)' : app.priority === 'Medium' ? 'var(--gold)' : 'var(--muted)',
+                      }}>
+                        {app.priority}
+                      </span>
+                    </div>
+                    {app.interviewDate && (
+                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <CalendarDays size={10} />
+                        {formatDate(app.interviewDate.slice(0, 10))}
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+        </div>
+        {/* Right-edge fade gradient — hints there are more columns */}
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 16, width: 48,
+          background: 'linear-gradient(to right, transparent, var(--bg))',
+          pointerEvents: 'none',
+        }} />
+      </div>
+    </div>
+  )
+}
+
+// ─── Stats View ────────────────────────────────────────────────────────────────
+function StatsView({
+  applications, queue, huntSession
+}: {
+  applications: Application[]
+  queue: QueuedApp[]
+  huntSession: HuntSession | null
+}) {
+  const totalApplied = applications.length + queue.length
+  const inPlay = applications.filter(a => IN_PLAY_STAGES.includes(a.stage)).length
+  const interviewed = applications.filter(a =>
+    ['Interviewing', 'Deciding', 'Offer', 'Closed'].includes(a.stage)
+  ).length
+  const offers = applications.filter(a => a.stage === 'Offer').length
+  const closed = applications.filter(a => a.stage === 'Closed').length
+  const gotScreening = applications.filter(a =>
+    ['Screening', 'Assessment', 'Interviewing', 'Deciding', 'Offer', 'Closed'].includes(a.stage)
+  ).length
+
+  const pct = (n: number) => totalApplied > 0 ? Math.round((n / totalApplied) * 100) : 0
+  const intPct = interviewed > 0 ? Math.round((offers / interviewed) * 100) : 0
+
+  const metrics = [
+    { label: 'Total Applied', value: totalApplied, color: 'var(--blue)' },
+    { label: 'Got a Response', value: gotScreening, color: 'var(--purple)', sub: `${pct(gotScreening)}% of applied` },
+    { label: 'Reached Interview', value: interviewed, color: 'var(--brand)', sub: `${pct(interviewed)}% of applied` },
+    { label: 'Offers Received', value: offers, color: 'var(--gold)', sub: intPct > 0 ? `${intPct}% interview → offer` : undefined },
+    { label: 'Currently In Play', value: inPlay, color: 'var(--brand)' },
+    { label: 'Closed', value: closed, color: 'var(--muted)' },
+  ]
+
+  // Funnel stages
+  const funnelData = [
+    { label: 'Applied', count: totalApplied, color: 'var(--blue)' },
+    { label: 'Screening', count: applications.filter(a => a.stage === 'Screening').length + gotScreening, color: 'var(--purple)' },
+    { label: 'Interviewing', count: interviewed, color: 'var(--brand)' },
+    { label: 'Offer', count: offers, color: 'var(--gold)' },
+  ]
+  const maxFunnel = Math.max(totalApplied, 1)
+
+  // Closed by reason
+  const closedApps = applications.filter(a => a.stage === 'Closed')
+  const reasonCounts: Record<string, number> = {}
+  closedApps.forEach(a => {
+    const r = a.subStage || 'Unspecified'
+    reasonCounts[r] = (reasonCounts[r] ?? 0) + 1
+  })
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 900 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+          Stats
+        </h1>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+          {huntSession ? `Hunt started ${formatDate(huntSession.startedAt)}` : 'All-time stats'}
+        </div>
+      </div>
+
+      {/* Key metrics grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
+        {metrics.map(m => (
+          <div key={m.label} style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 12, padding: '18px 20px',
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+              {m.label}
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 700, color: m.color, letterSpacing: '-0.04em', marginBottom: 4 }}>
+              {m.value}
+            </div>
+            {m.sub && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{m.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Funnel */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>
+          Application Funnel
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {funnelData.map((item, i) => {
+            const pctWidth = Math.round((item.count / maxFunnel) * 100)
+            return (
+              <div key={item.label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-soft)', fontWeight: 500 }}>{item.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: item.color }}>{item.count}</span>
+                </div>
+                <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pctWidth}%` }}
+                    transition={{ duration: 0.7, ease: 'easeOut', delay: i * 0.1 }}
+                    style={{ height: '100%', background: item.color, borderRadius: 99 }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Response rate */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+          Key Conversion Rates
+        </div>
+        {[
+          { label: 'Applied → Any Response', rate: pct(gotScreening), note: 'Resume effectiveness' },
+          { label: 'Applied → Interview', rate: pct(interviewed), note: 'Market traction' },
+          { label: 'Interview → Offer', rate: intPct, note: 'Interview performance' },
+        ].map(({ label, rate, note }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, color: 'var(--text)' }}>{label}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>{note}</div>
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: rate >= 10 ? 'var(--brand)' : rate >= 5 ? 'var(--gold)' : 'var(--text-soft)', minWidth: 60, textAlign: 'right' }}>
+              {rate}%
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Rejection breakdown */}
+      {Object.keys(reasonCounts).length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+            Closed By Reason
+          </div>
+          {Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]).map(([reason, count]) => (
+            <div key={reason} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-soft)', flex: 1 }}>{reason}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--danger)', minWidth: 24, textAlign: 'right' }}>{count}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Rejection Center ──────────────────────────────────────────────────────────
+function RejectionsView({
+  applications, onSelect
+}: {
+  applications: Application[]
+  onSelect: (id: number) => void
+}) {
+  const [filter, setFilter] = useState<'all' | 'near-miss' | 'ghosted' | 'early'>('all')
+
+  const closed = applications.filter(a => a.stage === 'Closed')
+  const nearMiss = closed.filter(a => ['Rejected — After Round 2', 'Rejected — Final Round', 'Rejected — Offer Stage'].includes(a.subStage ?? ''))
+  const ghosted = closed.filter(a => a.subStage === 'Ghosted')
+  const early = closed.filter(a => ['Rejected — Application', 'Rejected — After Screening', 'Rejected — After Round 1'].includes(a.subStage ?? ''))
+
+  const filtered = filter === 'all' ? closed
+    : filter === 'near-miss' ? nearMiss
+    : filter === 'ghosted' ? ghosted
+    : early
+
+  const filterTabs = [
+    { id: 'all' as const, label: 'All', count: closed.length },
+    { id: 'near-miss' as const, label: 'Near Misses', count: nearMiss.length },
+    { id: 'ghosted' as const, label: 'Ghosted', count: ghosted.length },
+    { id: 'early' as const, label: 'Early Stage', count: early.length },
+  ]
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 900 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+          Rejection Center
+        </h1>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+          {closed.length} closed application{closed.length !== 1 ? 's' : ''}
+          {nearMiss.length > 0 && ` · ${nearMiss.length} near miss${nearMiss.length !== 1 ? 'es' : ''}`}
+        </div>
+      </div>
+
+      {/* Summary chips */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Near Misses', value: nearMiss.length, color: 'var(--gold)', bg: 'var(--gold-dim)' },
+          { label: 'Ghosted', value: ghosted.length, color: 'var(--muted)', bg: 'rgba(255,255,255,0.04)' },
+          { label: 'Early Rejections', value: early.length, color: 'var(--danger)', bg: 'var(--danger-dim)' },
+        ].map(chip => (
+          <div key={chip.label} style={{
+            padding: '8px 14px', borderRadius: 8,
+            background: chip.bg, border: `1px solid ${chip.color}30`,
+            display: 'flex', gap: 8, alignItems: 'center',
+          }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: chip.color }}>{chip.value}</span>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{chip.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {closed.length > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', marginBottom: 20, padding: '10px 14px', background: 'var(--brand-dim)', borderRadius: 8, border: '1px solid rgba(126,232,162,0.1)' }}>
+          💡 Every rejection gets you closer. Near misses mean your profile is competitive — keep refining.
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {filterTabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setFilter(t.id)}
+            style={{
+              padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+              fontFamily: 'var(--font-body)', cursor: 'pointer',
+              background: filter === t.id ? 'rgba(248,113,113,0.12)' : 'var(--surface)',
+              color: filter === t.id ? 'var(--danger)' : 'var(--muted)',
+              border: `1px solid ${filter === t.id ? 'rgba(248,113,113,0.3)' : 'var(--border)'}`,
+            }}
+          >
+            {t.label} {t.count > 0 && `(${t.count})`}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="grid-bg" style={{ textAlign: 'center', padding: '60px 0', borderRadius: 12, border: '1px dashed var(--border)' }}>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Nothing here. Keep applying.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map((app, i) => {
+            const isNearMiss = nearMiss.includes(app)
+            return (
+              <motion.div
+                key={app.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                onClick={() => onSelect(app.id)}
+                style={{
+                  background: 'var(--surface)',
+                  border: `1px solid ${isNearMiss ? 'rgba(251,191,36,0.2)' : 'var(--border)'}`,
+                  borderLeft: isNearMiss ? '3px solid var(--gold)' : '3px solid transparent',
+                  borderRadius: 10, padding: '14px 16px',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 14,
+                }}
+                whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{app.company}</span>
+                    {isNearMiss && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)', background: 'var(--gold-dim)', padding: '1px 7px', borderRadius: 99 }}>
+                        Near Miss
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {app.role || '—'} · Applied {formatDate(app.appliedOn)}
+                  </div>
+                  {app.subStage && (
+                    <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 3, fontWeight: 500 }}>
+                      {app.subStage}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                  {app.salary && <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{app.salary}</span>}
+                  {app.desireRank > 0 && (
+                    <span style={{ fontSize: 11, color: 'var(--gold)' }}>{'★'.repeat(app.desireRank)}{'☆'.repeat(5 - app.desireRank)}</span>
+                  )}
+                </div>
+                <ArrowRight size={14} color="var(--muted)" />
+              </motion.div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Interview Schedule ────────────────────────────────────────────────────────
+function InterviewScheduleView({
+  applications, onSelect
+}: {
+  applications: Application[]
+  onSelect: (id: number) => void
+}) {
+  const withInterviews = applications
+    .filter(a => a.interviewDate && a.stage !== 'Closed')
+    .sort((a, b) => (a.interviewDate ?? '').localeCompare(b.interviewDate ?? ''))
+
+  const upcoming = withInterviews.filter(a => (a.interviewDate ?? '') >= getTodayIso())
+  const past = withInterviews.filter(a => (a.interviewDate ?? '') < getTodayIso())
+
+  const prepColor = (status: string) => {
+    if (status === 'Ready') return 'var(--brand)'
+    if (status === 'Light prep') return 'var(--gold)'
+    return 'var(--muted)'
+  }
+
+  const Row = ({ app, dim }: { app: Application; dim?: boolean }) => {
+    const cfg = STAGE_CONFIG[app.stage]
+    const daysOut = app.interviewDate ? daysUntil(app.interviewDate.slice(0, 10)) : null
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+        onClick={() => onSelect(app.id)}
+        style={{
+          display: 'grid', gridTemplateColumns: '1fr 140px 120px 90px 80px',
+          alignItems: 'center', gap: 16,
+          padding: '12px 18px',
+          borderBottom: '1px solid var(--border)',
+          cursor: 'pointer', opacity: dim ? 0.5 : 1,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{app.company}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{app.role || '—'}</div>
+        </div>
+        <div style={{ fontSize: 13, color: dim ? 'var(--muted)' : 'var(--text-soft)' }}>
+          {app.interviewDate ? formatDateTime(app.interviewDate) : '—'}
+          {daysOut !== null && daysOut >= 0 && !dim && (
+            <div style={{ fontSize: 11, color: daysOut === 0 ? 'var(--danger)' : daysOut <= 2 ? 'var(--gold)' : 'var(--muted)', marginTop: 2 }}>
+              {daysOut === 0 ? 'Today!' : daysOut === 1 ? 'Tomorrow' : `In ${daysOut} days`}
+            </div>
+          )}
+        </div>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '4px 10px', borderRadius: 99,
+          background: cfg.bg, border: `1px solid ${cfg.color}30`,
+          fontSize: 11, fontWeight: 700, color: cfg.color,
+        }}>
+          {app.subStage || cfg.label}
+        </div>
+        <div style={{ fontSize: 12, color: prepColor(app.prepStatus || ''), fontWeight: 500 }}>
+          {app.prepStatus || 'Not started'}
+        </div>
+        <ArrowRight size={14} color="var(--muted)" />
+      </motion.div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+          Interview Schedule
+        </h1>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+          {upcoming.length} upcoming · {past.length} past
+        </div>
+      </div>
+
+      {withInterviews.length === 0 ? (
+        <div className="grid-bg" style={{ textAlign: 'center', padding: '80px 0', borderRadius: 12, border: '1px dashed var(--border)' }}>
+          <CalendarDays size={32} color="var(--muted)" style={{ margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 16, color: 'var(--text-soft)', marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 600 }}>No interviews scheduled</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Add an interview date inside any application's prep tab.</div>
+        </div>
+      ) : (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 140px 120px 90px 80px',
+            gap: 16, padding: '10px 18px',
+            background: 'var(--surface-2)', borderBottom: '1px solid var(--border)',
+            fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em',
+          }}>
+            <span>Company</span>
+            <span>Date & Time</span>
+            <span>Stage</span>
+            <span>Prep</span>
+            <span />
+          </div>
+
+          {upcoming.length > 0 && (
+            <>
+              <div style={{ padding: '8px 18px', background: 'rgba(126,232,162,0.04)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 700, color: 'var(--brand)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Upcoming
+              </div>
+              {upcoming.map(app => <Row key={app.id} app={app} />)}
+            </>
+          )}
+
+          {past.length > 0 && (
+            <>
+              <div style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Past
+              </div>
+              {past.map(app => <Row key={app.id} app={app} dim />)}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Archive View ──────────────────────────────────────────────────────────────
+function ArchiveView({
+  applications, onSelect
+}: {
+  applications: Application[]
+  onSelect: (id: number) => void
+}) {
+  const [search, setSearch] = useState('')
+  const closed = applications.filter(a => a.stage === 'Closed')
+  const filtered = closed.filter(a =>
+    !search || a.company.toLowerCase().includes(search.toLowerCase()) || (a.role || '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+            Archive
+          </h1>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+            {closed.length} closed application{closed.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+        <input
+          placeholder="Search archive…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
+            fontFamily: 'var(--font-body)', outline: 'none', width: 220,
+          }}
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="grid-bg" style={{ textAlign: 'center', padding: '80px 0', borderRadius: 12, border: '1px dashed var(--border)' }}>
+          <Archive size={32} color="var(--muted)" style={{ margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 16, color: 'var(--text-soft)', marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+            {search ? 'No results' : 'Archive is empty'}
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+            {search ? 'Try a different search term.' : 'Closed applications will appear here.'}
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 180px 160px 100px 40px',
+            gap: 16, padding: '10px 18px',
+            background: 'var(--surface-2)', borderBottom: '1px solid var(--border)',
+            fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em',
+          }}>
+            <span>Company</span>
+            <span>Role</span>
+            <span>Outcome</span>
+            <span>Applied</span>
+            <span />
+          </div>
+          {filtered.map((app, i) => (
+            <motion.div
+              key={app.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: i * 0.02 }}
+              whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+              onClick={() => onSelect(app.id)}
+              style={{
+                display: 'grid', gridTemplateColumns: '1fr 180px 160px 100px 40px',
+                alignItems: 'center', gap: 16,
+                padding: '12px 18px',
+                borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{app.company}</div>
+                {app.desireRank > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--gold)', marginTop: 2 }}>{'★'.repeat(app.desireRank)}{'☆'.repeat(5 - app.desireRank)}</div>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {app.role || '—'}
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {app.subStage ? (
+                  <span style={{
+                    padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+                    background: app.subStage?.includes('Rejected') || app.subStage === 'Ghosted' ? 'var(--danger-dim)' : app.subStage === 'Withdrew' ? 'rgba(255,255,255,0.06)' : 'var(--gold-dim)',
+                    color: app.subStage?.includes('Rejected') || app.subStage === 'Ghosted' ? 'var(--danger)' : app.subStage === 'Withdrew' ? 'var(--muted)' : 'var(--gold)',
+                  }}>
+                    {app.subStage}
+                  </span>
+                ) : <span style={{ color: 'var(--muted)' }}>Closed</span>}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{formatDateShort(app.appliedOn)}</div>
+              <ArrowRight size={14} color="var(--muted)" />
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Settings View ─────────────────────────────────────────────────────────────
+function SettingsView({
+  settings, onSave
+}: {
+  settings: UserSettings
+  onSave: (s: UserSettings) => void
+}) {
+  const [form, setForm] = useState<UserSettings>({ ...settings })
+  const [saved, setSaved] = useState(false)
+
+  function handleSave() {
+    onSave(form)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 14px', borderRadius: 8,
+    border: '1px solid var(--border)', background: 'var(--surface-2)',
+    color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none',
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12, fontWeight: 700, color: 'var(--muted)',
+    textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, display: 'block',
+  }
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 620 }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+          Settings
+        </h1>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+          Your profile is used in email templates and personalization.
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '24px', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 20, fontFamily: 'var(--font-display)' }}>Profile</div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>Full Name</label>
+          <input
+            style={inputStyle}
+            value={form.fullName}
+            onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
+            placeholder="Your full name (used in email templates)"
+          />
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>Target Salary</label>
+          <input
+            style={inputStyle}
+            value={form.targetSalaryGlobal}
+            onChange={e => setForm(f => ({ ...f, targetSalaryGlobal: e.target.value }))}
+            placeholder="e.g. $85,000 – $100,000"
+          />
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '24px', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 20, fontFamily: 'var(--font-display)' }}>Email Templates</div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>Availability (for scheduling emails)</label>
+          <textarea
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical' }}
+            value={form.availabilityNote}
+            onChange={e => setForm(f => ({ ...f, availabilityNote: e.target.value }))}
+            placeholder="e.g. Available Mon–Fri 9am–5pm CST, flexible for mornings"
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Email Signature</label>
+          <textarea
+            rows={4}
+            style={{ ...inputStyle, resize: 'vertical' }}
+            value={form.emailSignature}
+            onChange={e => setForm(f => ({ ...f, emailSignature: e.target.value }))}
+            placeholder={'e.g.\n\nBest,\nAamir Ali\n972-214-4380\naamirali1211@gmail.com'}
+          />
+        </div>
+      </div>
+
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        onClick={handleSave}
+        style={{
+          padding: '11px 24px', borderRadius: 8, border: 'none',
+          background: saved ? 'var(--success-dim)' : 'var(--brand)',
+          color: saved ? 'var(--success)' : '#08090D',
+          fontSize: 14, fontFamily: 'var(--font-body)', fontWeight: 700, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 8,
+          transition: 'background 0.2s',
+        }}
+      >
+        {saved ? <><CheckCircle size={16} /> Saved!</> : 'Save Settings'}
+      </motion.button>
     </div>
   )
 }
@@ -719,12 +1598,12 @@ function DetailPanel({
   const textareaStyle: React.CSSProperties = { ...inputStyle, resize: 'vertical' }
 
   const tabs: { id: DetailTab; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'contact',  label: 'Contact'  },
-    { id: 'job',      label: 'Job'      },
-    { id: 'prep',     label: 'Prep'     },
-    { id: 'offer',    label: 'Offer'    },
-    { id: 'email',    label: 'Email'    },
+    { id: 'overview',  label: 'Overview'  },
+    { id: 'contact',   label: 'Contact'   },
+    { id: 'job',       label: 'Job'       },
+    { id: 'prep',      label: 'Interview' },
+    { id: 'offer',     label: 'Offer'     },
+    { id: 'email',     label: 'Email'     },
   ]
 
   function copyEmail() {
@@ -891,31 +1770,40 @@ function DetailPanel({
 
         {tab === 'prep' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Interview logistics — top of tab */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 2 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Interview Date & Time</label>
+                <input type="datetime-local" value={draft.interviewDate} onChange={e => patchDraft('interviewDate', e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Prep Status</label>
+                <select value={draft.prepStatus} onChange={e => patchDraft('prepStatus', e.target.value as Application['prepStatus'])} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  {(['Not started', 'Light prep', 'Ready'] as const).map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 2 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Prep Notes</span>
+            </div>
+
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>General Prep Notes</label>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>General Notes</label>
               <textarea rows={3} value={draft.prepNotes} onChange={e => patchDraft('prepNotes', e.target.value)} placeholder="General notes, thoughts, reminders..." style={textareaStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Interview Date & Time</label>
-              <input type="datetime-local" value={draft.interviewDate} onChange={e => patchDraft('interviewDate', e.target.value)} style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Prep Status</label>
-              <select value={draft.prepStatus} onChange={e => patchDraft('prepStatus', e.target.value as Application['prepStatus'])} style={{ ...inputStyle, cursor: 'pointer' }}>
-                {(['Not started', 'Light prep', 'Ready'] as const).map(s => <option key={s}>{s}</option>)}
-              </select>
             </div>
             <div>
               <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Company Research</label>
               <textarea rows={3} value={draft.companyResearch} onChange={e => patchDraft('companyResearch', e.target.value)} placeholder="What you know about the company, culture, recent news..." style={textareaStyle} />
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Questions to Ask / Prep Answers</label>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Questions to Ask / Prep For</label>
               <textarea rows={3} value={draft.prepQuestions} onChange={e => patchDraft('prepQuestions', e.target.value)} placeholder="Questions to ask, questions to prep for..." style={textareaStyle} />
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Key Talking Points (STAR stories)</label>
-              <textarea rows={3} value={draft.talkingPoints} onChange={e => patchDraft('talkingPoints', e.target.value)} placeholder="Your best examples, STAR stories, talking points..." style={textareaStyle} />
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Key Talking Points</label>
+              <textarea rows={3} value={draft.talkingPoints} onChange={e => patchDraft('talkingPoints', e.target.value)} placeholder="STAR stories, strongest examples, what to lead with..." style={textareaStyle} />
             </div>
           </div>
         )}
@@ -1025,11 +1913,12 @@ export default function App() {
   const [applications, setApplications] = useState<Application[]>(() => loadApplications())
   const [queue, setQueue] = useState<QueuedApp[]>(() => loadQueue())
   const [huntSession, setHuntSession] = useState<HuntSession | null>(() => loadHuntSession())
-  const [settings] = useState<UserSettings>(() => loadSettings())
+  const [settings, setSettings] = useState<UserSettings>(() => loadSettings())
   const [careerStats] = useState<CareerStats>(() => loadCareerStats())
 
   const [huntModalOpen, setHuntModalOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [quickAddDefaultStage, setQuickAddDefaultStage] = useState<MainStage>('Applied')
   const [selectedAppId, setSelectedAppId] = useState<number | null>(null)
 
   // Persist on every change
@@ -1043,6 +1932,14 @@ export default function App() {
   const pendingQueueCount = useMemo(() => queue.filter(q => q.status === 'pending').length, [queue])
   const rejectionCount = useMemo(() => applications.filter(a => a.stage === 'Closed').length, [applications])
   const selectedApp = useMemo(() => applications.find(a => a.id === selectedAppId) ?? null, [applications, selectedAppId])
+  // Total apps sent (all tracker apps + queue items) — for the sidebar counter
+  const totalApplied = useMemo(() => applications.length + queue.filter(q => q.status !== 'dismissed').length, [applications, queue])
+  // Apps submitted this week (tracker + queue combined)
+  const weekApps = useMemo(() =>
+    applications.filter(a => isSameWeek(a.appliedOn)).length +
+    queue.filter(q => isSameWeek(q.receivedOn)).length,
+    [applications, queue]
+  )
 
   function updateApplications(updated: Application[]) { setApplications(updated) }
 
@@ -1061,15 +1958,24 @@ export default function App() {
       company: item.company,
       role: item.role,
       source: item.source,
-      receivedOn: item.receivedOn,
       appliedOn: item.receivedOn,
-      stage: 'Applied',
-      note: item.snippet,
+      stage: 'Screening',  // Promoting from queue means they got a response → Screening
+      quickAddNote: item.snippet,
       huntSessionId: huntSession?.id,
-      history: [createHistoryEntry('Added from inbox', item.snippet || '', 'Applied')],
-    } as Partial<Application>)
+      history: [createHistoryEntry('Promoted from inbox', item.snippet || '', 'Status')],
+    })
     setApplications(prev => [app, ...prev])
     setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'tracked', trackedAppId: app.id } : q))
+    setView('tracker')
+  }
+
+  function moveToTracker(appId: number, stage: MainStage) {
+    setApplications(prev => prev.map(a =>
+      a.id === appId
+        ? { ...a, stage, history: [...a.history, createHistoryEntry(`Moved to ${stage}`, '', 'Status')] }
+        : a
+    ))
+    setView('tracker')
   }
 
   function handleViewChange(v: string, appId?: number) {
@@ -1088,10 +1994,12 @@ export default function App() {
         setView={setView}
         huntSession={huntSession}
         appliedCount={pendingQueueCount}
+        totalApplied={totalApplied}
+        weekApps={weekApps}
         rejectionCount={rejectionCount}
         onStartHunt={() => setHuntModalOpen(true)}
-        onGorillaModeOpen={() => {}}
-        gorillaActive={false}
+        onLockInOpen={() => {}}
+        lockInActive={false}
       />
 
       {/* Main content */}
@@ -1116,7 +2024,9 @@ export default function App() {
                 applications={applications}
                 onQueueUpdate={setQueue}
                 onPromote={promoteQueueItem}
-                onQuickAdd={() => setQuickAddOpen(true)}
+                onMoveToTracker={moveToTracker}
+                onQuickAdd={() => { setQuickAddDefaultStage('Applied'); setQuickAddOpen(true) }}
+                onSelect={id => setSelectedAppId(id)}
               />
             </motion.div>
           )}
@@ -1127,31 +2037,38 @@ export default function App() {
                 applications={applications}
                 onUpdate={updateApplications}
                 onSelect={id => setSelectedAppId(id)}
+                onQuickAdd={() => { setQuickAddDefaultStage('Screening'); setQuickAddOpen(true) }}
               />
             </motion.div>
           )}
 
           {view === 'pipeline' && (
             <motion.div key="pipeline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PlaceholderView title="Pipeline (Kanban)" icon={<Kanban size={32} color="var(--muted)" />} />
+              <PipelineView
+                applications={applications}
+                onSelect={id => setSelectedAppId(id)}
+              />
             </motion.div>
           )}
 
           {view === 'interviews' && (
             <motion.div key="interviews" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PlaceholderView title="Interview Schedule" icon={<CalendarDays size={32} color="var(--muted)" />} />
+              <InterviewScheduleView applications={applications} onSelect={id => setSelectedAppId(id)} />
             </motion.div>
           )}
 
           {view === 'stats' && (
             <motion.div key="stats" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PlaceholderView title="Stats & Reporting" icon={<BarChart2 size={32} color="var(--muted)" />} />
+              <StatsView applications={applications} queue={queue} huntSession={huntSession} />
             </motion.div>
           )}
 
           {view === 'rejections' && (
             <motion.div key="rejections" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PlaceholderView title="Rejection Center" icon={<XCircle size={32} color="var(--muted)" />} />
+              <RejectionsView
+                applications={applications}
+                onSelect={id => setSelectedAppId(id)}
+              />
             </motion.div>
           )}
 
@@ -1161,15 +2078,40 @@ export default function App() {
             </motion.div>
           )}
 
+          {view === 'calendar' && (
+            <motion.div key="calendar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <CalendarView
+                applications={applications}
+                onSelectApp={id => setSelectedAppId(id)}
+              />
+            </motion.div>
+          )}
+
+          {view === 'prep-room' && selectedApp && (
+            <motion.div key="prep-room" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <PrepRoom
+                app={selectedApp}
+                onBack={() => setView('tracker')}
+                onUpdate={updateApp}
+              />
+            </motion.div>
+          )}
+
+          {view === 'prep-room' && !selectedApp && (
+            <motion.div key="prep-room-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <PlaceholderView title="Prep Room" icon={<FileText size={32} color="var(--muted)" />} />
+            </motion.div>
+          )}
+
           {view === 'archive' && (
             <motion.div key="archive" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PlaceholderView title="Archive" icon={<Archive size={32} color="var(--muted)" />} />
+              <ArchiveView applications={applications} onSelect={id => setSelectedAppId(id)} />
             </motion.div>
           )}
 
           {view === 'settings' && (
             <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PlaceholderView title="Settings" icon={<SettingsIcon size={32} color="var(--muted)" />} />
+              <SettingsView settings={settings} onSave={setSettings} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1199,7 +2141,8 @@ export default function App() {
       <QuickAddModal
         open={quickAddOpen}
         onClose={() => setQuickAddOpen(false)}
-        onAdd={addApplication}
+        onAdd={app => { addApplication(app); if (app.stage !== 'Applied') setView('tracker') }}
+        defaultStage={quickAddDefaultStage}
       />
     </div>
   )

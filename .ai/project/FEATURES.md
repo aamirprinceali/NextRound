@@ -1,151 +1,240 @@
-# NextRound — Features
+# Prospect — Features
 
 ## Status Key
 - ✅ Built & working
-- 🔧 Built but needs polish/improvement
-- 📋 Planned / prioritized
+- 🔧 Built but needs improvement
+- 📋 Planned / prioritized (has a phase in master plan)
 - 💡 Ideas backlog
-- 🚀 Future / post-launch
+- 🚀 Future / requires backend
 
 ---
 
-## Core App
+## Core Screens
 
-### Dashboard
-- ✅ Weekly application goal with progress bar
-- ✅ "Needs attention" panel — stalled/overdue applications
-- ✅ Upcoming interviews list
-- ✅ Top picks (highest desire-ranked active apps)
-- ✅ Live sidebar metrics (active, interviewing, needs attention, archived)
-- 📋 **REDESIGN — make it a true command center, premium and dynamic**
-- 📋 Interview prep countdown cards (days until next interview)
-- 📋 "Drafts waiting for review" count badge (email approval queue)
-- 💡 "Why I want this job" reminder surface on dashboard for upcoming interviews
+### Dashboard (Command Center)
+- ✅ Hero stat row: Total Applied, In Play, Response Rate, Interviews — count-up animated
+- ✅ AnimatedCount — video game feel, numbers climb when they increase
+- ✅ Today's Calendar Snapshot — today's interviews + follow-ups as clickable pills
+- ✅ Upcoming interviews with Prep Room shortcut button per row
+- ✅ Pipeline glance with per-stage animated counters
+- ✅ All cards clickable → navigate to relevant view
+- 📋 Next-step rate widget ("X% of your apps got a response")
+- 📋 Interview countdown widget (48hr warning with prep nudge)
+- 📋 Stale app nudge ("3 apps haven't moved in 14+ days")
+- 📋 Today's Focus: shows tasks due today + today's interviews + stalling app reminders
 
-### Application Tracker
-- ✅ Full sortable table — company, stage, priority, follow-up, desire rank, applied date
-- ✅ Click stage pill to instantly change stage
-- ✅ Filter by stage or free-text search
+### Active (In Play / Tracker) — Phase 3F
+- ✅ Sortable table — company, stage, priority, follow-up, desire rank, applied date
+- ✅ Inline stage selector with DropdownPortal (escapes overflow:hidden clipping)
+- ✅ Quick Add (defaults to Screening stage)
 - ✅ Priority badges (High/Medium/Low)
-- ✅ Desire rank 1–5 stars
-- ✅ Flagged indicator ("I really want this one")
-- ✅ Auto-generated follow-up date (7 days after applied)
-- ✅ Visual overdue/stalled indicators
-- 📋 **Quick Capture bar** — paste a job URL or type company + role, hit Enter, done in 10 seconds
-- 💡 Browser bookmarklet / extension — one click on a job posting pre-fills the add form
+- 📋 **Rename "In Play" → "Active"** (nav: Active, heading: Active Applications)
+- 📋 Health indicator dots (green/yellow/red/blue/purple per activity/stage)
+- 📋 Days in stage column
+- 📋 Last activity column
+- 📋 Next action column (linked task — shows date + overdue warning)
+- 📋 Summary bar: total active + per-stage counts, all clickable to filter
+- 📋 Filter system: by stage, priority, health, source, next action date
+- 📋 Sort: days in stage (default), next action date, priority, desire rank
+- 📋 Hover quick actions: change stage, add next action, open prep, close out
+- 📋 Bulk actions: change stage, set priority, close out multiple
 
-### Application Detail (6 tabs per app)
-- ✅ Overview tab — stage history, quick-edit fields, notes
-- ✅ Contact tab — recruiter + manager info
-- ✅ Job tab — pay range, job description, resume version, cover letter notes
-- ✅ Prep tab — company research, questions, STAR talking points, interview date, prep status
-- ✅ Offer tab — offer amount, decision notes, accept/decline
-- ✅ Email tab — composer with 5 templates
-- 📋 **"Why I want this job" field** — personal note written at time of add, surfaces in Prep tab before interview
-- 💡 AI-generated prep questions from job description (Claude API integration)
+### Applied (Inbox / Triage) — Phase 10
+- ✅ Pending queue + submitted apps + quick add
+- ✅ "Track this →" to move to tracker
+- 📋 **3-bucket redesign:** Applied (thank-you stats) / Next Steps (interested emails) / Rejections (pre-interview)
+- 📋 Next Steps bucket: contact pulled from email, user moves to In Play intentionally
+- 📋 Pre-integration: manual add buttons for each bucket
+- 📋 Separate counters per bucket (no double counting)
 
-### Pipeline View
-- ✅ Kanban-style 3-column board: Applied → Interviewing → Decision
+### Pipeline — Phase 3G
+- ✅ Kanban board by stage with stage count chips and scroll gradient
+- 📋 **Drag-and-drop between columns** (Framer Motion drag API)
+- 📋 Auto-label on drop: Interviewing → "Round 1", Offer → prompt for offer amount
+- 📋 Column headers show app count
+- 📋 Cards show: health dot, days in stage, next action date
+- 📋 Edit still done in detail panel — drag only changes stage
 
 ### Interview Schedule
 - ✅ Table of all apps with scheduled interview dates
-- ✅ Shows company, role, date/time, prep status, stage
+- ✅ Shows company, role, date/time, prep status, stage, countdown
+
+### Prep Room
+- ✅ Full-screen two-column interview workspace
+- ✅ 4 tabs: General Notes, Questions, Talking Points, Response Library
+- ✅ Auto-save with debounce + "Saving..." indicator
+- ✅ Response Library: shared across all apps, saved to localStorage
+- ✅ Common prompt starters + expandable response cards
+- ✅ Accessible from Dashboard upcoming interviews shortcut
+
+### Full Interview Prep Page — Phase 9
+- 📋 Own nav item under Main
+- 📋 Lists all apps in Interviewing stage
+- 📋 Select app → full-screen prep workspace
+- 📋 "Create Prep" button stub (AI fills it in Phase 15)
 
 ### Calendar View
-- ✅ Monthly calendar — interviews, follow-ups, offers
-- ✅ Color coded by type
+- ✅ Monthly calendar grid (Sun–Sat, prev/next navigation, Today button)
+- ✅ Interview dates (jade) + follow-up dates (gold) from existing app data
+- ✅ Click event → opens app detail
+- ✅ "Google Calendar integration coming soon" badge
+- 🚀 Calendar sync: write interviews to Google Calendar (Phase 14)
 
-### Inbox / Application Queue
-- ✅ "Thanks for applying" emails route to queue only (user decides to track or dismiss)
-- ✅ "Track this →" button to move to tracker
-- ✅ "Not interested" to dismiss
-- ✅ Auto-promote: interview invites for queued companies auto-promote to tracker
-- ✅ Already tracking / dismissed sections
-- ✅ Manual add form (before n8n is connected)
-- ✅ Email routing simulator
-- 📋 **Rename/clarify UI language to "Applications Submitted Queue" more clearly**
-- 📋 **Email Approval Queue** — separate section showing auto-drafted replies waiting for user review before sending
-- 📋 Availability-aware auto-draft: when interview invite comes in, auto-draft a "send your availability" reply using Settings availability block
-
-### Smart Email Routing (handleIncomingEmail)
-- ✅ Acknowledgment → queue only
-- ✅ Next steps / assessment → Recruiter Screen stage
-- ✅ Interview invite → Scheduled 1st Interview stage
-- ✅ Offer → Offer made stage
-- ✅ Rejection → No response stage
-- ✅ Deduplication — never creates two tracker entries for same company
-- ✅ Never moves stage backwards
-- 📋 **Auto-draft reply on interview invite** (uses availability from Settings, user approves before send)
-- 🚀 Real email parsing via n8n + Gmail OAuth (post-launch)
-
-### Stats & Reporting
-- ✅ Overview chips: total applied, active, next steps, rejections, offers, response rate
-- ✅ Application funnel bar chart
-- ✅ Rejection breakdown by stage
-- ✅ Applications by source
-- ✅ Round-by-round interview stats
-- 📋 **Visual polish pass — cleaner layout, better charts**
-- 💡 Response-rate trends over time
-- 💡 Metrics by role family / industry
-- 💡 Source performance (which platform converts best for you)
+### Stats & Reporting — Phase 8 + 16
+- ✅ Overview chips, funnel chart, rejection breakdown, source breakdown
+- 📋 Session-based filtering (current hunt vs all-time)
+- 📋 Next-step rate widget on Dashboard
+- 📋 Source effectiveness (which platform converts best)
+- 📋 Rejection breakdown: pre-interview vs post-interview
+- 📋 Time-in-stage distribution
+- 📋 **Generate Report** (Phase 16): Claude analyzes all data → personalized written report
+  - Where You Stand, Where You're Dropping Off, What's Working, Recommendations, This Week's Priority
+- 📋 Full analytics dashboard with funnel visualization and drop-off heatmap
 
 ### Rejection Center
-- ✅ Summary chips: total closed, near misses, ghosted, early rejections
-- ✅ Filter tabs: All / Near misses / Ghosted / Early stage
-- ✅ Grouped by stage reached
-- ✅ Near-miss cards with amber highlight
+- ✅ Summary chips, filter tabs, grouped by stage, near-miss highlighting
 - ✅ Red badge count on sidebar nav
-- 💡 "Apply again?" recommendation — flag companies worth re-approaching later
 
-### Email Composer
-- ✅ 5 pre-filled templates per application
-- ✅ Editable before copying
-- ✅ "Open in email client" button (mailto)
-- 📋 **Email Approval Queue** — drafts auto-generated on trigger, collected in one place for review/send
-- 📋 Auto-send toggle in Settings (default: require approval / optional: auto-send)
+### Archive — Phase 3B (close-out system)
+- ✅ Table of all closed apps
+- 📋 **Close-Out modal** — Rejection path (pre-interview / by round / ghosted) + Withdrew path (reasons)
+- 📋 Auto-archive after 90 days of no movement
+- 📋 Archive entry: company, role, stage reached, date closed, reason, desire rank, salary, contact snapshot
 
-### Contacts / Recruiters Section
-- ✅ Contacts stored per-application (recruiter + hiring manager tabs)
-- 📋 **Standalone Contacts page** — dedicated section for all contacts across all applications
-- 📋 Assign contacts to specific applications
-- 📋 Recruiter profile card: name, company, email, phone, LinkedIn, notes
-- 📋 "Linked applications" on each contact record — see every job they've touched
-- 💡 Contact history log — what you said and when
-- 💡 Future: come back after 6 months and still have recruiter info intact
+### Contacts Section — Phase 4
+- ✅ Contact fields exist on each app (recruiter + manager fields)
+- 📋 **Contact tab redesign**: Add Contact button → modal (name, title, email, phone x2 with type, notes)
+- 📋 **Standalone Contacts section** (own nav item under Tools)
+- 📋 Auto-created when app moves to In Play
+- 📋 Contact age display ("Added 47 days ago")
+- 📋 Search by name, company, role
+- 📋 Contact survives after app is archived
+- 📋 Option to unlink contact from job
 
-### Archive View
-- ✅ Table of all closed/archived applications
-- ✅ Archive reason + detail notes
-- ✅ Click row to open full application
-- 💡 Never truly delete archived apps — long-term memory/history use case
+### Tasks — Phase 5
+- 📋 **Own nav item** under Tools
+- 📋 Two types: General task + App-linked task (next action)
+- 📋 Task fields: title, due date, linked app, done/not done
+- 📋 Next action on an app = creates a task automatically
+- 📋 Dashboard Today's Focus: due today + overdue tasks + today's interviews + stalling apps
+- 📋 App detail: shows app-linked tasks inline
 
-### Export
-- ✅ CSV export of all applications
+### Resume Vault — Phase 12
+- ✅ Placeholder screen exists
+- 🚀 Upload PDF/DOCX (Supabase Storage)
+- 🚀 Version tracking (which resume used per app)
+- 🚀 Response rate by resume version
+- 🚀 Feeds AI Interview Prep (Phase 15)
 
 ### Settings
-- ✅ Full name
-- ✅ Availability block (used in scheduling templates)
-- ✅ Email signature
-- 📋 Auto-send toggle for email drafts (approve first vs auto-send)
-- 💡 Custom stage labels
-- 💡 Notification preferences (future)
+- ✅ Full name, target salary, availability, email signature
+- 📋 Industry default (for new apps)
+- 📋 Role category default
 
 ---
 
-## Future / Post-Launch Features
-- 🚀 Browser bookmarklet / extension — one click on job posting pre-fills NextRound quick-add
-- 🚀 File uploads (resume, cover letter per job) — requires Supabase backend
-- 🚀 Scheduling conflict detection — warn when two interviews overlap
-- 🚀 n8n + Gmail OAuth — real email parsing and automation
-- 🚀 Supabase backend — data persistence beyond localStorage
-- 🚀 AI prep questions from job description (Claude API)
-- 🚀 Mobile-optimized layout
-- 🚀 Desktop app packaging (Electron or Tauri)
-- 🚀 Multi-user / cloud sync
-- 🚀 Import from spreadsheet
-- 🚀 Visual career map / relationship view — node-style map connecting companies, roles, sources, outcomes
-- 🚀 Journey Map view — timeline showing how far each role advanced
-- 🚀 "Where should I re-apply?" recommendations based on history
-- 🚀 Custom stage labels per user
-- 🚀 Drag-and-drop stage updates
-- 🚀 Reusable interview question bank
+## Application Detail Panel (tabs)
+
+### Overview tab
+- ✅ Stage history log (every change timestamped)
+- ✅ Quick-edit: stage, priority, desire rank, follow-up date, work style
+- ✅ Notes field
+- ✅ Applied date, source
+
+### Contact tab — Phase 3C
+- ✅ Recruiter name + contact (current open fields)
+- 📋 **Add Contact button** → modal (name, title, email, phone x2 + type, notes)
+- 📋 Multiple contacts per app supported
+- 📋 Syncs to standalone Contacts section (Phase 4)
+
+### Job tab
+- ✅ Listed pay range, target pay, job description, resume version, cover letter notes
+- 📋 **Industry category** (Tech / Healthcare / Finance / Sales / Operations / Other)
+- 📋 **Role category** (broad type)
+- 📋 **Cover letter included** (boolean)
+
+### Interview tab (was "Prep")
+- ✅ Interview date + status first, then prep notes
+- ✅ Prep status selector, company research, questions, talking points
+
+### Offer tab
+- ✅ Offer amount, decision notes, accept/decline
+
+### Email tab
+- ✅ 5 templates (follow-up, thank-you, availability, confirm, withdraw)
+- ✅ Copy to clipboard, open in email client
+- 🚀 Send directly once Gmail integrated (Phase 13)
+
+---
+
+## Quick Add Modal — Phase 3D
+- ✅ Company, role, source, pay, date, note, stage selector
+- 📋 **When Interviewing selected**: show interview date + interviewer name + interviewer email
+
+---
+
+## Stage System — Phase 3E
+- ✅ 7 main stages: Applied, Screening, Assessment, Interviewing, Deciding, Offer, Closed
+- ✅ Sub-stages per stage
+- ✅ Two-line compact stage pill (stage + sub-stage)
+- 🔧 **Stage selector bug**: closes too early — needs to stay open for sub-stage selection (Phase 3A)
+- 📋 **New sub-stages**: Waiting on Response, Waiting on Decision, Negotiating Offer, Considering Offer, Declined Offer
+- 📋 Declined Offer → triggers auto-close modal → archived
+
+---
+
+## Sidebar & Navigation
+- ✅ Brand logo, hunt session banner, nav groups
+- ✅ Big "X apps sent" counter + animated weekly goal progress bar
+- ✅ Lock In button (jade green, renamed from Gorilla Mode)
+- 📋 Lock In timer: active countdown shown in sidebar (Phase 6)
+- 📋 Add Contacts nav item (Phase 4)
+- 📋 Add Tasks nav item (Phase 5)
+- 📋 Add Full Interview Prep nav item (Phase 9)
+- 📋 Rename "In Play" → "Active" (Phase 3F)
+
+---
+
+## Lock In — Phase 6
+- ✅ Button wired (jade green, state-aware)
+- 📋 Timer modal: set target (# apps) + duration (30/45/60/90 min)
+- 📋 Sidebar shows countdown when active
+- 📋 End screen: animated summary (apps sent vs goal)
+- 📋 Unlocks badges
+
+---
+
+## Badge System — Phase 7
+- 📋 Volume badges (25/100/250/500/1000 apps)
+- 📋 Rejection badges — badge of honor (25/100/250/500)
+- 📋 Progress badges (first interview, first offer, first accepted)
+- 📋 Consistency badges (3-week streak, 10 Lock In sessions)
+- 📋 Endurance badges (30/60/90 day hunt)
+- 📋 Toast notification when earned
+- 📋 Badge display panel
+
+---
+
+## Onboarding — Phase 11
+- 📋 First-time experience (triggers when onboardingComplete === false)
+- 📋 Profile setup → start hunt session → quick tour → ready
+
+---
+
+## Backend & Integrations (future)
+- 🚀 Supabase backend (Phase 12+)
+- 🚀 Gmail + n8n email automation (Phase 13)
+- 🚀 Google Calendar write (Phase 14)
+- 🚀 Claude API: AI Interview Prep (Phase 15)
+- 🚀 Claude API: Analytics Generate Report (Phase 16)
+- 🚀 Claude API: Job Buddy AI Companion (Phase 17)
+
+---
+
+## Analytics Data Points — Capture Now for Phase 16
+These fields should be added to apps now so data exists when analytics is built:
+- `industry` — Tech / Healthcare / Finance / Sales / Operations / Other
+- `roleCategory` — broad role type
+- `coverLetterIncluded` — boolean
+- `resumeVersionId` — text for now, links to Resume Vault later
+- `history[]` — already capturing all stage transitions with timestamps ✅

@@ -183,7 +183,7 @@ export type BadgeId =
   | 'apps_25' | 'apps_100' | 'apps_250' | 'apps_500' | 'apps_1000'
   | 'rej_25' | 'rej_100' | 'rej_250' | 'rej_500'
   | 'first_interview' | 'first_offer' | 'first_accepted'
-  | 'weekly_goal_streak_3' | 'gorilla_mode_10'
+  | 'weekly_goal_streak_3' | 'lock_in_10'
   | 'hunt_30_days' | 'hunt_60_days' | 'hunt_90_days'
 
 export type EarnedBadge = {
@@ -216,6 +216,7 @@ export type View =
   | 'resume-vault'
   | 'archive'
   | 'settings'
+  | 'prep-room'
 
 export type DetailTab = 'overview' | 'contact' | 'job' | 'prep' | 'offer' | 'email'
 
@@ -227,7 +228,7 @@ export const STORAGE_KEYS = {
   CAREER_STATS:     'prospect-career-stats',
   SETTINGS:         'prospect-settings',
   BADGES:           'prospect-badges',
-  GORILLA_SESSIONS: 'prospect-gorilla-sessions',
+  LOCK_IN_SESSIONS: 'prospect-lockin-sessions',
   // Legacy keys for migration
   LEGACY_APPS:      'nextround-applications',
   LEGACY_QUEUE:     'nextround-queue',

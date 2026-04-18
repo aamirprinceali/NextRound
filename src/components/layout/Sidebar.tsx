@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Inbox, Kanban, List, CalendarDays,
   BarChart2, XCircle, FileText, Archive, Settings,
-  Zap, Target, ChevronRight, TrendingUp
+  Zap, Target, ChevronRight, TrendingUp, Calendar
 } from 'lucide-react'
 import type { View, HuntSession } from '../../types'
 import { huntDaysElapsed } from '../../utils/dates'
@@ -25,6 +25,7 @@ const NAV_MAIN: NavItem[] = [
 
 const NAV_TOOLS: NavItem[] = [
   { id: 'interviews',  label: 'Interviews',     icon: CalendarDays },
+  { id: 'calendar',    label: 'Calendar',       icon: Calendar },
   { id: 'stats',       label: 'Stats',          icon: BarChart2 },
   { id: 'rejections',  label: 'Rejections',     icon: XCircle },
   { id: 'resume-vault',label: 'Resume Vault',   icon: FileText },
@@ -36,11 +37,13 @@ type SidebarProps = {
   currentView: View
   setView: (v: View) => void
   huntSession: HuntSession | null
-  appliedCount: number
+  appliedCount: number     // Pending queue badge count
+  totalApplied: number     // All-time total apps submitted
+  weekApps: number         // Apps submitted this week
   rejectionCount: number
   onStartHunt: () => void
-  onGorillaModeOpen: () => void
-  gorillaActive: boolean
+  onLockInOpen: () => void
+  lockInActive: boolean
 }
 
 // ─── Nav Item ──────────────────────────────────────────────────────────────────
@@ -110,10 +113,13 @@ function NavLink({
 // ─── Sidebar ───────────────────────────────────────────────────────────────────
 export function Sidebar({
   currentView, setView, huntSession,
-  appliedCount, rejectionCount,
-  onStartHunt, onGorillaModeOpen, gorillaActive
+  appliedCount, totalApplied, weekApps, rejectionCount,
+  onStartHunt, onLockInOpen, lockInActive
 }: SidebarProps) {
   const daysActive = huntSession ? huntDaysElapsed(huntSession.startedAt) : 0
+  const weeklyGoal = huntSession?.weeklyGoal ?? 0
+  const goalPct = weeklyGoal > 0 ? Math.min(100, Math.round((weekApps / weeklyGoal) * 100)) : 0
+  const goalHit = weeklyGoal > 0 && weekApps >= weeklyGoal
 
   return (
     <motion.aside
@@ -175,22 +181,68 @@ export function Sidebar({
       {huntSession ? (
         <div style={{
           margin: '12px 12px 0',
-          padding: '10px 12px',
+          padding: '12px 12px',
           background: 'var(--gold-dim)',
           border: '1px solid rgba(251,191,36,0.2)',
           borderRadius: 8,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <TrendingUp size={12} color="var(--gold)" />
-            <span style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              {huntSession.mode === 'active' ? 'Active Hunt' : 'Casual Search'}
+          {/* Mode + day counter */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <TrendingUp size={12} color="var(--gold)" />
+              <span style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Day {daysActive}
+              </span>
+            </div>
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500 }}>
+              {huntSession.mode === 'active' ? 'Active Hunt' : 'Casual'}
             </span>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
-            Day {daysActive}
+
+          {/* Total applied — big counter */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
+            <span style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 26, fontWeight: 700,
+              color: 'var(--text)',
+              letterSpacing: '-0.04em',
+              lineHeight: 1,
+            }}>
+              {totalApplied}
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+              {totalApplied === 1 ? 'app sent' : 'apps sent'}
+            </span>
           </div>
+
+          {/* Weekly goal progress */}
+          {weeklyGoal > 0 && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                <span style={{ fontSize: 10, color: goalHit ? 'var(--brand)' : 'var(--muted)', fontWeight: 600 }}>
+                  {goalHit ? '✓ Week goal hit' : 'This week'}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: goalHit ? 'var(--brand)' : 'var(--gold)' }}>
+                  {weekApps}/{weeklyGoal}
+                </span>
+              </div>
+              <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${goalPct}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
+                  style={{
+                    height: '100%',
+                    background: goalHit ? 'var(--brand)' : 'var(--gold)',
+                    borderRadius: 99,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           {huntSession.targetRole && (
-            <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {huntSession.targetRole}
             </div>
           )}
@@ -262,18 +314,18 @@ export function Sidebar({
       {/* ── Gorilla Mode Button ── */}
       <div style={{ padding: '8px 12px 4px', borderTop: '1px solid var(--border)' }}>
         <button
-          onClick={onGorillaModeOpen}
+          onClick={onLockInOpen}
           style={{
             width: '100%',
             padding: '9px 12px',
             borderRadius: 8,
-            border: gorillaActive
-              ? '1px solid rgba(251,146,60,0.4)'
+            border: lockInActive
+              ? '1px solid rgba(126,232,162,0.4)'
               : '1px solid rgba(255,255,255,0.06)',
-            background: gorillaActive
-              ? 'rgba(251,146,60,0.1)'
+            background: lockInActive
+              ? 'rgba(126,232,162,0.08)'
               : 'rgba(255,255,255,0.03)',
-            color: gorillaActive ? 'var(--warning)' : 'var(--text-soft)',
+            color: lockInActive ? 'var(--brand)' : 'var(--text-soft)',
             fontSize: 13,
             fontFamily: 'var(--font-body)',
             fontWeight: 600,
@@ -282,11 +334,11 @@ export function Sidebar({
             alignItems: 'center',
             gap: 8,
             transition: 'all 0.15s ease',
-            boxShadow: gorillaActive ? '0 0 12px rgba(251,146,60,0.15)' : 'none',
+            boxShadow: lockInActive ? '0 0 12px rgba(126,232,162,0.12)' : 'none',
           }}
         >
           <Zap size={14} />
-          {gorillaActive ? 'Gorilla Mode — Active' : 'Gorilla Mode'}
+          {lockInActive ? 'Lock In — Active' : 'Lock In'}
         </button>
       </div>
 
