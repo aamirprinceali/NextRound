@@ -481,7 +481,7 @@ function TrackerView({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
-            In Play
+            Active
           </h1>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
             {inPlay.length} active application{inPlay.length !== 1 ? 's' : ''} in your pipeline
@@ -644,35 +644,147 @@ function TrackerView({
 }
 
 // ─── Applied View (staging tier) ──────────────────────────────────────────────
-function AppliedView({
-  queue, applications, onQueueUpdate, onPromote, onMoveToTracker, onQuickAdd, onSelect
+// ─── Inbox (3-Bucket Triage) ──────────────────────────────────────────────────
+function InboxView({
+  queue, applications, onQueueUpdate, onPromote, onQuickAdd, onSelect
 }: {
   queue: QueuedApp[]
   applications: Application[]
   onQueueUpdate: (q: QueuedApp[]) => void
   onPromote: (qId: number) => void
-  onMoveToTracker: (appId: number, stage: MainStage) => void
   onQuickAdd: () => void
   onSelect: (id: number) => void
 }) {
-  const pending = queue.filter(q => q.status === 'pending')
-  const allApplied = applications.filter(a => a.stage === 'Applied')
-  const totalApplied = pending.length + allApplied.length
+  // Funnel counts (all-time totals for top bar)
+  const totalSubmitted = applications.length
+  const totalNextSteps = queue.filter(q =>
+    ['interview', 'assessment', 'next_steps', 'offer'].includes(q.emailType)
+  ).length
+  const totalActive = applications.filter(a => IN_PLAY_STAGES.includes(a.stage)).length
+  const totalClosed = applications.filter(a => a.stage === 'Closed').length
 
-  const rowBtn: React.CSSProperties = {
-    padding: '5px 11px', borderRadius: 6, fontSize: 12,
-    fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', border: 'none',
+  // Bucket lists (what's currently actionable)
+  const submittedApps = applications.filter(a => a.stage === 'Applied')
+  const nextStepsItems = queue.filter(q =>
+    ['interview', 'assessment', 'next_steps', 'offer'].includes(q.emailType) &&
+    q.status === 'pending'
+  )
+  const declinedItems = queue.filter(q =>
+    q.emailType === 'rejection' && q.status !== 'dismissed'
+  )
+
+  // Add-form visibility
+  const [showAddNextSteps, setShowAddNextSteps] = useState(false)
+  const [showAddDeclined, setShowAddDeclined] = useState(false)
+
+  // Next Steps form fields
+  const [nsCompany, setNsCompany] = useState('')
+  const [nsRole, setNsRole] = useState('')
+  const [nsType, setNsType] = useState<EmailType>('next_steps')
+  const [nsContactName, setNsContactName] = useState('')
+  const [nsContactEmail, setNsContactEmail] = useState('')
+
+  // Declined form fields
+  const [dcCompany, setDcCompany] = useState('')
+  const [dcRole, setDcRole] = useState('')
+
+  function submitNextSteps() {
+    if (!nsCompany.trim()) return
+    const item: QueuedApp = {
+      id: Date.now(),
+      company: nsCompany.trim(),
+      role: nsRole.trim(),
+      source: 'manual',
+      emailType: nsType,
+      snippet: '',
+      receivedOn: getTodayIso(),
+      status: 'pending',
+      contactName: nsContactName.trim() || undefined,
+      contactEmail: nsContactEmail.trim() || undefined,
+    }
+    onQueueUpdate([...queue, item])
+    setShowAddNextSteps(false)
+    setNsCompany(''); setNsRole(''); setNsContactName(''); setNsContactEmail('')
+    setNsType('next_steps')
+  }
+
+  function submitDeclined() {
+    if (!dcCompany.trim()) return
+    const item: QueuedApp = {
+      id: Date.now(),
+      company: dcCompany.trim(),
+      role: dcRole.trim(),
+      source: 'manual',
+      emailType: 'rejection',
+      snippet: 'Pre-interview rejection',
+      receivedOn: getTodayIso(),
+      status: 'pending',
+    }
+    onQueueUpdate([...queue, item])
+    setShowAddDeclined(false)
+    setDcCompany(''); setDcRole('')
+  }
+
+  function dismissItem(id: number) {
+    onQueueUpdate(queue.map(q => q.id === id ? { ...q, status: 'dismissed' } : q))
+  }
+
+  const emailTypeLabel: Record<string, string> = {
+    interview: 'Interview Invite',
+    assessment: 'Assessment',
+    next_steps: 'Next Steps',
+    offer: 'Offer',
+  }
+
+  const inputSt: React.CSSProperties = {
+    width: '100%', padding: '8px 12px', borderRadius: 7,
+    border: '1px solid var(--border)', background: 'var(--surface-2)',
+    color: 'var(--text)', fontFamily: 'var(--font-body)', fontSize: 13,
+    outline: 'none', boxSizing: 'border-box',
+  }
+
+  function SectionHeader({
+    label, count, color, description, onAdd,
+  }: { label: string; count: number; color: string; description: string; onAdd: () => void }) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, color, letterSpacing: '-0.01em' }}>
+              {label}
+            </span>
+            <span style={{ background: `${color}25`, color, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+              {count}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{description}</div>
+        </div>
+        <button
+          onClick={onAdd}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)',
+            background: 'transparent', color: 'var(--text-soft)',
+            fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          <Plus size={12} /> Add
+        </button>
+      </div>
+    )
   }
 
   return (
-    <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+    <div style={{ padding: '28px 32px', maxWidth: 880 }}>
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
-            Applied
+            Inbox
           </h1>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-            {totalApplied} total application{totalApplied !== 1 ? 's' : ''} submitted
+            Your full application pipeline — from first send to active pursuit
           </div>
         </div>
         <button
@@ -684,128 +796,333 @@ function AppliedView({
             fontSize: 13, fontFamily: 'var(--font-body)', fontWeight: 700, cursor: 'pointer',
           }}
         >
-          <Plus size={14} /> Quick Add
+          <Plus size={14} /> Log Application
         </button>
       </div>
 
-      {/* Queue items (pending from email) */}
-      {pending.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-            Inbox Queue — {pending.length} pending
+      {/* Funnel bar */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: '18px 24px', marginBottom: 24,
+        display: 'flex', alignItems: 'center',
+      }}>
+        {([
+          { label: 'Submitted', value: totalSubmitted, color: 'var(--blue)' },
+          { label: 'Next Steps', value: totalNextSteps, color: 'var(--gold)' },
+          { label: 'Active', value: totalActive, color: 'var(--brand)' },
+          { label: 'Closed', value: totalClosed, color: 'var(--muted)' },
+        ] as const).map((item, i, arr) => (
+          <React.Fragment key={item.label}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{
+                fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700,
+                color: item.color, letterSpacing: '-0.04em', lineHeight: 1,
+              }}>
+                {item.value}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {item.label}
+              </div>
+            </div>
+            {i < arr.length - 1 && (
+              <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.12)', padding: '0 8px', flexShrink: 0 }}>→</div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* ── SUBMITTED ── */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderLeft: '3px solid var(--blue)', borderRadius: 12,
+        padding: '20px 20px', marginBottom: 14,
+      }}>
+        <SectionHeader
+          label="Submitted"
+          count={submittedApps.length}
+          color="var(--blue)"
+          description="Applications awaiting a response. Log one every time you apply."
+          onAdd={onQuickAdd}
+        />
+        {submittedApps.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13 }}>
+            No applications waiting for a response yet.
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {pending.map(item => (
+        ) : (
+          <div>
+            {submittedApps.map((app, i) => (
+              <motion.div
+                key={app.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.02 }}
+                onClick={() => onSelect(app.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '10px 0', cursor: 'pointer',
+                  borderBottom: i < submittedApps.length - 1 ? '1px solid var(--border)' : 'none',
+                }}
+                whileHover={{ backgroundColor: 'rgba(255,255,255,0.01)' }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{app.company}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>
+                    {app.role || '—'} · {app.source} · {formatDate(app.appliedOn)}
+                  </div>
+                </div>
+                {app.salary && (
+                  <div style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 500 }}>{app.salary}</div>
+                )}
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDateShort(app.appliedOn)}</div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── NEXT STEPS ── */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderLeft: '3px solid var(--gold)', borderRadius: 12,
+        padding: '20px 20px', marginBottom: 14,
+      }}>
+        <SectionHeader
+          label="Next Steps"
+          count={nextStepsItems.length}
+          color="var(--gold)"
+          description="Companies that responded with interest. Review and decide whether to pursue."
+          onAdd={() => setShowAddNextSteps(v => !v)}
+        />
+
+        {/* Inline add form */}
+        <AnimatePresence>
+          {showAddNextSteps && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div style={{
+                background: 'var(--surface-2)', borderRadius: 10, padding: '16px',
+                marginBottom: 16, border: '1px solid var(--border)',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gold)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Log Next Steps
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <input placeholder="Company *" value={nsCompany} onChange={e => setNsCompany(e.target.value)} style={inputSt} />
+                  <input placeholder="Role" value={nsRole} onChange={e => setNsRole(e.target.value)} style={inputSt} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+                  <select value={nsType} onChange={e => setNsType(e.target.value as EmailType)} style={{ ...inputSt, cursor: 'pointer' }}>
+                    <option value="next_steps">General Next Steps</option>
+                    <option value="interview">Interview Invite</option>
+                    <option value="assessment">Assessment</option>
+                    <option value="offer">Offer</option>
+                  </select>
+                  <input placeholder="Contact name (optional)" value={nsContactName} onChange={e => setNsContactName(e.target.value)} style={inputSt} />
+                  <input placeholder="Contact email (optional)" value={nsContactEmail} onChange={e => setNsContactEmail(e.target.value)} style={inputSt} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={submitNextSteps}
+                    disabled={!nsCompany.trim()}
+                    style={{
+                      padding: '7px 16px', borderRadius: 7, border: 'none',
+                      background: nsCompany.trim() ? 'var(--gold)' : 'var(--border)',
+                      color: nsCompany.trim() ? '#08090D' : 'var(--muted)',
+                      fontSize: 12, fontWeight: 700, cursor: nsCompany.trim() ? 'pointer' : 'default',
+                      fontFamily: 'var(--font-body)',
+                    }}
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => { setShowAddNextSteps(false); setNsCompany(''); setNsRole('') }}
+                    style={{
+                      padding: '7px 14px', borderRadius: 7, border: '1px solid var(--border)',
+                      background: 'transparent', color: 'var(--muted)',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {nextStepsItems.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13 }}>
+            No pending next steps. When a company responds with interest, log it here.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {nextStepsItems.map(item => (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 style={{
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: 10, padding: '14px 16px',
+                  background: 'var(--surface-2)', borderRadius: 10, padding: '14px 16px',
+                  border: '1px solid var(--border)',
                   display: 'flex', alignItems: 'center', gap: 14,
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{item.company}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                    {item.role || 'Role TBD'} · {item.source} · {formatDate(item.receivedOn)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{item.company}</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                      background: 'rgba(251,191,36,0.15)', color: 'var(--gold)',
+                    }}>
+                      {emailTypeLabel[item.emailType] ?? item.emailType}
+                    </span>
                   </div>
-                  {item.snippet && (
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {item.role || 'Role TBD'} · {formatDate(item.receivedOn)}
+                  </div>
+                  {(item.contactName || item.contactEmail) && (
+                    <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 4 }}>
+                      {[item.contactName, item.contactEmail].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                  {item.snippet && item.snippet !== 'Pre-interview rejection' && (
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.snippet}
                     </div>
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button onClick={() => onPromote(item.id)} style={{ ...rowBtn, background: 'var(--brand-dim)', color: 'var(--brand)' }}>
-                    Track this →
+                  <button
+                    onClick={() => onPromote(item.id)}
+                    style={{
+                      padding: '7px 14px', borderRadius: 7, border: 'none',
+                      background: 'var(--brand)', color: '#08090D',
+                      fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    Move to Active →
                   </button>
                   <button
-                    onClick={() => onQueueUpdate(queue.map(q => q.id === item.id ? { ...q, status: 'dismissed' } : q))}
-                    style={{ ...rowBtn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)' }}
+                    onClick={() => dismissItem(item.id)}
+                    style={{
+                      padding: '7px 12px', borderRadius: 7,
+                      border: '1px solid var(--border)', background: 'transparent',
+                      color: 'var(--muted)', fontSize: 12, cursor: 'pointer',
+                      fontFamily: 'var(--font-body)', fontWeight: 500,
+                    }}
                   >
-                    Dismiss
+                    Not Interested
                   </button>
                 </div>
               </motion.div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* All manually-added / applied applications */}
-      {allApplied.length > 0 && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-            All Submitted — {allApplied.length}
-          </div>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            {allApplied.map((app, i) => (
-              <motion.div
-                key={app.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: i * 0.03 }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14,
-                  padding: '12px 16px',
-                  borderBottom: i < allApplied.length - 1 ? '1px solid var(--border)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'background 0.1s',
-                }}
-                onHoverStart={e => (e.target as HTMLElement).style?.setProperty?.('', '')}
-                onClick={() => onSelect(app.id)}
-                whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{app.company}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {app.role || '—'} · {app.source} · {formatDate(app.appliedOn)}
-                  </div>
-                  {app.quickAddNote && (
-                    <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 2, fontStyle: 'italic' }}>
-                      {app.quickAddNote}
-                    </div>
-                  )}
+      {/* ── PRE-INTERVIEW DECLINES ── */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderLeft: '3px solid var(--danger)', borderRadius: 12,
+        padding: '20px 20px',
+      }}>
+        <SectionHeader
+          label="Pre-Interview Declines"
+          count={declinedItems.length}
+          color="var(--danger)"
+          description="Rejected before any screening or interview. Part of the process — keep going."
+          onAdd={() => setShowAddDeclined(v => !v)}
+        />
+
+        <AnimatePresence>
+          {showAddDeclined && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div style={{
+                background: 'var(--surface-2)', borderRadius: 10, padding: '16px',
+                marginBottom: 16, border: '1px solid var(--border)',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Log Rejection
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-soft)', marginRight: 8 }}>{app.salary || '—'}</div>
-                {/* Move to tracker — pick initial in-play stage */}
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                  <select
-                    defaultValue=""
-                    onChange={e => {
-                      if (e.target.value) {
-                        onMoveToTracker(app.id, e.target.value as MainStage)
-                        e.target.value = ''
-                      }
-                    }}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                  <input placeholder="Company *" value={dcCompany} onChange={e => setDcCompany(e.target.value)} style={inputSt} />
+                  <input placeholder="Role" value={dcRole} onChange={e => setDcRole(e.target.value)} style={inputSt} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={submitDeclined}
+                    disabled={!dcCompany.trim()}
                     style={{
-                      padding: '5px 8px', borderRadius: 6, fontSize: 12,
-                      background: 'var(--surface-2)', border: '1px solid var(--border)',
-                      color: 'var(--brand)', fontFamily: 'var(--font-body)',
-                      cursor: 'pointer', outline: 'none',
+                      padding: '7px 16px', borderRadius: 7, border: 'none',
+                      background: dcCompany.trim() ? 'var(--danger)' : 'var(--border)',
+                      color: dcCompany.trim() ? '#fff' : 'var(--muted)',
+                      fontSize: 12, fontWeight: 700, cursor: dcCompany.trim() ? 'pointer' : 'default',
+                      fontFamily: 'var(--font-body)',
                     }}
                   >
-                    <option value="" disabled>Move to tracker →</option>
-                    <option value="Screening">→ Screening</option>
-                    <option value="Assessment">→ Assessment</option>
-                    <option value="Interviewing">→ Interviewing</option>
-                  </select>
+                    Log
+                  </button>
+                  <button
+                    onClick={() => { setShowAddDeclined(false); setDcCompany(''); setDcRole('') }}
+                    style={{
+                      padding: '7px 14px', borderRadius: 7, border: '1px solid var(--border)',
+                      background: 'transparent', color: 'var(--muted)',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </div>
-              </motion.div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {declinedItems.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13 }}>
+            No pre-interview rejections logged.
+          </div>
+        ) : (
+          <div>
+            {declinedItems.map((item, i) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '10px 0',
+                  borderBottom: i < declinedItems.length - 1 ? '1px solid var(--border)' : 'none',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{item.company}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>
+                    {item.role || '—'} · {formatDate(item.receivedOn)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => dismissItem(item.id)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                    background: 'transparent', color: 'var(--muted)',
+                    fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {totalApplied === 0 && (
-        <div className="grid-bg" style={{ textAlign: 'center', padding: '80px 0', borderRadius: 12, border: '1px dashed var(--border)' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-          <div style={{ fontSize: 16, color: 'var(--text-soft)', marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 600 }}>No applications yet.</div>
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Hit Quick Add to log your first one.</div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -976,7 +1293,7 @@ function StatsView({
     { label: 'Got a Response', value: gotScreening, color: 'var(--purple)', sub: `${pct(gotScreening)}% of applied` },
     { label: 'Reached Interview', value: interviewed, color: 'var(--brand)', sub: `${pct(interviewed)}% of applied` },
     { label: 'Offers Received', value: offers, color: 'var(--gold)', sub: intPct > 0 ? `${intPct}% interview → offer` : undefined },
-    { label: 'Currently In Play', value: inPlay, color: 'var(--brand)' },
+    { label: 'Currently Active', value: inPlay, color: 'var(--brand)' },
     { label: 'Closed', value: closed, color: 'var(--muted)' },
   ]
 
@@ -1954,15 +2271,25 @@ export default function App() {
   function promoteQueueItem(queueId: number) {
     const item = queue.find(q => q.id === queueId)
     if (!item) return
+    // Pick stage based on email type
+    const stageByType: Partial<Record<string, MainStage>> = {
+      interview: 'Interviewing',
+      assessment: 'Assessment',
+      offer: 'Offer',
+    }
+    const stage: MainStage = stageByType[item.emailType] ?? 'Screening'
     const app = newBlankApp({
       company: item.company,
       role: item.role,
-      source: item.source,
+      source: item.source === 'manual' ? 'Other' : item.source,
       appliedOn: item.receivedOn,
-      stage: 'Screening',  // Promoting from queue means they got a response → Screening
+      stage,
       quickAddNote: item.snippet,
       huntSessionId: huntSession?.id,
-      history: [createHistoryEntry('Promoted from inbox', item.snippet || '', 'Status')],
+      // Pull contact info from the queue item if it exists
+      recruiter: item.contactName || '',
+      recruiterContact: item.contactEmail || '',
+      history: [createHistoryEntry(`Moved from Inbox · ${item.emailType}`, item.snippet || '', 'Status')],
     })
     setApplications(prev => [app, ...prev])
     setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'tracked', trackedAppId: app.id } : q))
@@ -2019,12 +2346,11 @@ export default function App() {
 
           {view === 'applied' && (
             <motion.div key="applied" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <AppliedView
+              <InboxView
                 queue={queue}
                 applications={applications}
                 onQueueUpdate={setQueue}
                 onPromote={promoteQueueItem}
-                onMoveToTracker={moveToTracker}
                 onQuickAdd={() => { setQuickAddDefaultStage('Applied'); setQuickAddOpen(true) }}
                 onSelect={id => setSelectedAppId(id)}
               />

@@ -461,34 +461,34 @@ Each count is clickable — filters the table to that stage. "X active" clears a
 
 ---
 
-## 🔲 Phase 10 — Inbox Triage Redesign
+## ✅ Phase 10 — Inbox Triage Redesign (COMPLETE — built 2026-04-21)
 
-**What it is:** The inbox (Applied section) becomes a proper three-bucket triage system. Each bucket has its own counter and sub-section.
+**What was built:** The Applied view was rebuilt into a 3-bucket Inbox triage system.
 
-**Three buckets (on one page, visually separated):**
+**Three buckets:**
+| Bucket | What it shows | Counter |
+|---|---|---|
+| Submitted | Applications in 'Applied' stage (awaiting response) | All-time total submitted |
+| Next Steps | Queue items with interest/assessment/interview/offer email types | All-time next steps count |
+| Pre-Interview Declines | Queue items with rejection email type | Running total |
 
-| Bucket | Triggered by | Counter | Action |
-|---|---|---|---|
-| Applied | "Thank you for applying" email | Total apps submitted | No action needed — stat only |
-| Next Steps | Any email showing interest, assessment, interview invite | Next round rate | User decides to move to In Play |
-| Rejections | Rejection email (before any In Play stage) | Pre-interview rejections | Goes to rejection tracking |
+**Funnel bar at top:** Submitted → Next Steps → Active → Closed (all-time totals at a glance)
 
-**Next Steps flow:**
-1. Entry appears with: company, email content preview, contact info pulled from email
-2. User clicks → sees full email + contact info
-3. Options: "Move to In Play" → confirm contact modal → contact added to Contacts + app appears in tracker
-4. Or "Not Interested" → dismissed, contact not saved
+**"Move to Active →" on Next Steps cards:**
+- Auto-picks correct stage: interview→Interviewing, assessment→Assessment, offer→Offer, else→Screening
+- Contact name + email from queue item auto-populates recruiter field on the new app
+- Phase 4 (Contacts section): will also save to standalone Contacts page
 
-**Contact info pulled from email (when integration is live):**
-- Name, title, email, company, phone
+**Manual add forms:** Each bucket has an "+ Add" button with a simple inline form. No email integration needed to start using it.
 
-**Pre-integration:** User manually adds entries to each bucket with a form. Three "Add" buttons — one per bucket.
+**What's still needed from original vision:**
+- Contact auto-save to Contacts page (Phase 4 — Contacts section not built yet)
+- Email integration (Phase 13 — Gmail + n8n) to auto-route incoming emails to correct bucket
 
-**Note:** Next Steps and Rejection counters don't add to the Total Apps count — those are already counted when the original "thank you" email came in. They have their own separate counters.
-
-**Files to modify:**
-- `src/App.tsx` — rebuild AppliedView into TriageView with 3 sub-sections
-- `src/types/index.ts` — add emailType field to QueuedApp ('applied' | 'next-steps' | 'rejection')
+**Files modified:**
+- `src/App.tsx` — replaced AppliedView with InboxView (3-bucket), renamed "In Play" → "Active"
+- `src/types/index.ts` — added contactName, contactTitle, contactEmail to QueuedApp
+- `src/components/layout/Sidebar.tsx` — renamed "Applied" → "Inbox", "In Play" → "Active"
 
 ---
 
@@ -784,4 +784,18 @@ Warm, direct, real-talk — not corporate. Like a successful friend who cares.
 
 ---
 
-*Updated: 2026-04-17 — full roadmap through Phase 16. Phase 3 is next build.*
+---
+
+## GitHub Auto-Backup Rule
+**Every meaningful build gets committed and pushed to GitHub before the session ends.**
+- "Meaningful" = any feature addition, UI change, bug fix, or plan update
+- Tiny wording changes or style tweaks can be batched with the next real commit
+- Command: `cd ~/Desktop/dev/NextRound && git add -p && git commit -m "..." && git push`
+- This was added after a session where ideas got discussed but weren't captured in the repo
+
+## Ideas Backlog
+All confirmed ideas live in `.ai/project/IDEAS_BACKLOG.md`. This file gets updated every session. Do not rely on conversation memory for ideas — write them down.
+
+---
+
+*Updated: 2026-04-21 — Inbox triage built (3 buckets). "In Play" → "Active" everywhere. Phase 3 next.*

@@ -151,6 +151,10 @@ export type QueuedApp = {
   status: 'pending' | 'dismissed' | 'tracked'
   trackedAppId?: number
   huntSessionId?: string
+  // Contact info pulled from email or entered manually
+  contactName?: string
+  contactTitle?: string
+  contactEmail?: string
 }
 
 // ─── Gorilla Mode ──────────────────────────────────────────────────────────────

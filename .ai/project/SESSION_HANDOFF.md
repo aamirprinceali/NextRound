@@ -1,5 +1,5 @@
 # Prospect — Session Handoff
-**Last updated: 2026-04-18**
+**Last updated: 2026-04-21**
 
 ---
 
@@ -32,8 +32,8 @@ Everything below is **built and working** as of this session:
 | Screen | Status |
 |---|---|
 | Dashboard (Command Center) | ✅ Full rebuild — count-up animations, Today's Calendar Snapshot, pipeline glance |
-| Applied (Inbox) | ✅ Queue + submitted apps + quick add |
-| Active (In Play Tracker) | ✅ Sortable table, stage selector, priority badges |
+| Inbox (3-bucket triage) | ✅ Submitted / Next Steps / Pre-Interview Declines with funnel bar |
+| Active (tracker) | ✅ Renamed from "In Play", sortable table, stage selector, priority badges |
 | Pipeline (Kanban) | ✅ Stage columns with count chips + scroll gradient |
 | Interview Schedule | ✅ Upcoming/past, prep status, countdown |
 | Calendar View | ✅ Monthly grid, interview + follow-up events |
@@ -42,12 +42,16 @@ Everything below is **built and working** as of this session:
 | Rejection Center | ✅ Filter tabs, near-miss highlighting, red badge |
 | Archive | ✅ Searchable table of closed apps |
 | Settings | ✅ Name, salary, availability, email signature |
-| Lock In button | ✅ Renamed from Gorilla Mode, jade green, wired (timer modal TBD) |
+| Lock In button | ✅ Jade green, wired (timer modal TBD) |
 | Sidebar | ✅ Hunt session banner, "X apps sent" counter, weekly goal progress bar |
+
+**This session:** Inbox rebuilt as 3-bucket triage (Submitted / Next Steps / Pre-Interview Declines). Funnel bar shows all-time pipeline totals. "In Play" renamed to "Active" everywhere. "Move to Active →" on Next Steps cards auto-picks correct stage from email type and pulls contact into recruiter field.
 
 ---
 
-## What To Build Next — Phase 3 (all frontend, no backend)
+## What To Build Next
+
+### Phase 3 — Core Refinements (START HERE)
 
 **Work through these in order. Build → test → user approves → move to next.**
 

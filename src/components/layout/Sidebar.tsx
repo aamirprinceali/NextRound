@@ -18,8 +18,8 @@ type NavItem = {
 
 const NAV_MAIN: NavItem[] = [
   { id: 'dashboard',   label: 'Command Center', icon: LayoutDashboard },
-  { id: 'applied',     label: 'Applied',        icon: Inbox },
-  { id: 'tracker',     label: 'In Play',        icon: List },
+  { id: 'applied',     label: 'Inbox',          icon: Inbox },
+  { id: 'tracker',     label: 'Active',         icon: List },
   { id: 'pipeline',    label: 'Pipeline',       icon: Kanban },
 ]
 
