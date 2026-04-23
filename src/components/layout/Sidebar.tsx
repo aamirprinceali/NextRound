@@ -305,7 +305,6 @@ export function Sidebar({
               item={item}
               active={currentView === item.id}
               onClick={() => setView(item.id)}
-              badge={item.id === 'rejections' ? rejectionCount : undefined}
             />
           ))}
         </div>

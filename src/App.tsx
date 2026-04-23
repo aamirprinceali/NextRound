@@ -273,18 +273,21 @@ function QuickAddModal({
   onAdd: (app: Application) => void
   defaultStage?: MainStage
 }) {
-  const [form, setForm] = useState({ company: '', role: '', source: 'LinkedIn', salary: '', appliedOn: getTodayIso(), note: '', stage: defaultStage })
+  const [form, setForm] = useState({ company: '', role: '', source: 'LinkedIn', salary: '', appliedOn: getTodayIso(), note: '', stage: defaultStage, interviewDate: '', interviewRound: 'Round 1' as SubStage })
   const [saving, setSaving] = useState(false)
 
   // Reset form stage when defaultStage changes (e.g. opening from tracker vs applied)
-  useEffect(() => { setForm(f => ({ ...f, stage: defaultStage })) }, [defaultStage, open])
+  useEffect(() => { setForm(f => ({ ...f, stage: defaultStage, interviewDate: '', interviewRound: 'Round 1' as SubStage })) }, [defaultStage, open])
 
   function handleAdd() {
     if (!form.company.trim()) return
     setSaving(true)
+    const isInterviewing = form.stage === 'Interviewing'
     const app = newBlankApp({
       ...form,
       stage: form.stage as MainStage,
+      subStage: isInterviewing ? form.interviewRound : undefined,
+      interviewDate: isInterviewing ? form.interviewDate : '',
       quickAddNote: form.note,
       history: [createHistoryEntry(form.stage, `Added via quick add${form.note ? ': ' + form.note : ''}`, 'Applied')],
     })
@@ -397,6 +400,33 @@ function QuickAddModal({
               />
             </div>
           </div>
+
+          {/* Interview fields — shown when Interviewing stage is selected */}
+          {form.stage === 'Interviewing' && (
+            <div style={{ display: 'flex', gap: 10, padding: '12px 14px', background: 'rgba(126,232,162,0.06)', borderRadius: 8, border: '1px solid rgba(126,232,162,0.15)' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--brand)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Round</label>
+                <select
+                  value={form.interviewRound}
+                  onChange={e => setForm(f => ({ ...f, interviewRound: e.target.value as SubStage }))}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  {(['Round 1', 'Round 2', 'Round 3', 'Round 4+'] as SubStage[]).map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: 1.5 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--brand)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Interview Date & Time</label>
+                <input
+                  type="datetime-local"
+                  value={form.interviewDate}
+                  onChange={e => setForm(f => ({ ...f, interviewDate: e.target.value }))}
+                  style={{ ...inputStyle }}
+                  onFocus={e => (e.target.style.borderColor = 'rgba(126,232,162,0.4)')}
+                  onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <button
@@ -421,6 +451,221 @@ function QuickAddModal({
   )
 }
 
+// ─── Close Out Modal ──────────────────────────────────────────────────────────
+function CloseOutModal({
+  app, onConfirm, onCancel
+}: {
+  app: Application
+  onConfirm: (updates: Partial<Application>) => void
+  onCancel: () => void
+}) {
+  const safeStage: MainStage = app.stage === 'Closed' ? 'Screening' : app.stage
+  const [closeType, setCloseType] = useState<'rejected' | 'ghosted' | 'withdrew'>('rejected')
+  const [stageReached, setStageReached] = useState<MainStage>(safeStage)
+  const [rejRound, setRejRound] = useState<SubStage>('Rejected — Application')
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [note, setNote] = useState('')
+
+  const stageToRejection: Partial<Record<MainStage, SubStage>> = {
+    'Applied':      'Rejected — Application',
+    'Screening':    'Rejected — After Screening',
+    'Assessment':   'Rejected — After Screening',
+    'Interviewing': 'Rejected — After Round 1',
+    'Deciding':     'Rejected — After Round 2',
+    'Offer':        'Rejected — Offer Stage',
+  }
+  useEffect(() => {
+    setRejRound(stageToRejection[stageReached] ?? 'Rejected — Application')
+  }, [stageReached])
+
+  function handleConfirm() {
+    let subStage: SubStage
+    if (closeType === 'ghosted') subStage = 'Ghosted'
+    else if (closeType === 'withdrew') subStage = 'Withdrew'
+    else subStage = rejRound
+    onConfirm({
+      stage: 'Closed', subStage,
+      notes: note ? (app.notes ? app.notes + '\n\n[Close-out] ' + note : '[Close-out] ' + note) : app.notes,
+      history: [...app.history, createHistoryEntry(
+        `Closed · ${closeType === 'ghosted' ? 'Ghosted' : closeType === 'withdrew' ? 'Withdrew' : 'Rejected'}`,
+        `Stage: ${stageReached}${note ? ' · ' + note : ''}`, 'Archive'
+      )],
+    })
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--border)',
+    background: 'var(--surface-2)', color: 'var(--text)', fontFamily: 'var(--font-body)',
+    fontSize: 13, outline: 'none', boxSizing: 'border-box', cursor: 'pointer',
+  }
+  const stageOptions: MainStage[] = ['Applied', 'Screening', 'Assessment', 'Interviewing', 'Deciding', 'Offer']
+  const rejStages: { value: SubStage; label: string }[] = [
+    { value: 'Rejected — Application',      label: 'Before any contact (email rejection)' },
+    { value: 'Rejected — After Screening',  label: 'After Recruiter / Phone Screen' },
+    { value: 'Rejected — After Round 1',    label: 'After Round 1' },
+    { value: 'Rejected — After Round 2',    label: 'After Round 2' },
+    { value: 'Rejected — Final Round',      label: 'After Final Round' },
+    { value: 'Rejected — Offer Stage',      label: 'At Offer Stage' },
+  ]
+  const withdrawReasons = [
+    'Compensation too low', 'Accepted another offer', 'Declined an offer I received',
+    'No longer interested — role fit', 'No longer interested — company fit',
+    'Personal reasons', 'Other',
+  ]
+  const canConfirm = closeType !== 'withdrew' || !!withdrawReason
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <motion.div initial={{ scale: 0.96, y: 12 }} animate={{ scale: 1, y: 0 }}
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 28, width: '100%', maxWidth: 480, position: 'relative' }}
+      >
+        <button onClick={onCancel} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
+          <X size={18} />
+        </button>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Close Out Application</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{app.company}{app.role ? ` · ${app.role}` : ''}</div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Stage reached */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Stage reached</label>
+            <select value={stageReached} onChange={e => setStageReached(e.target.value as MainStage)} style={inp}>
+              {stageOptions.map(s => <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>)}
+            </select>
+          </div>
+
+          {/* Reason type */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reason</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { id: 'rejected', label: 'Rejected',  color: 'var(--danger)' },
+                { id: 'ghosted',  label: 'Ghosted',   color: 'var(--warning)' },
+                { id: 'withdrew', label: 'Withdrew',  color: 'var(--text-soft)' },
+              ] as const).map(t => (
+                <button key={t.id} onClick={() => setCloseType(t.id)}
+                  style={{
+                    flex: 1, padding: '9px 0', borderRadius: 8,
+                    border: closeType === t.id ? `1px solid ${t.color}60` : '1px solid var(--border)',
+                    background: closeType === t.id ? `${t.color}15` : 'transparent',
+                    color: closeType === t.id ? t.color : 'var(--muted)',
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+                  }}
+                >{t.label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Rejection sub-stage */}
+          {closeType === 'rejected' && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rejected at</label>
+              <select value={rejRound} onChange={e => setRejRound(e.target.value as SubStage)} style={inp}>
+                {rejStages.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Ghosted note */}
+          {closeType === 'ghosted' && (
+            <div style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.2)', borderRadius: 8, padding: '12px 14px', fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.5 }}>
+              They never replied. <strong style={{ color: 'var(--warning)' }}>Ghosted</strong> gets tracked separately — it's a pattern worth knowing about.
+            </div>
+          )}
+
+          {/* Withdrew reason */}
+          {closeType === 'withdrew' && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Why did you withdraw?</label>
+              <select value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} style={inp}>
+                <option value="">Select a reason...</option>
+                {withdrawReasons.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Note */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Note (optional)</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Any context about this close-out..." rows={2}
+              style={{ ...inp, resize: 'none', cursor: 'text' }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+          <button onClick={onCancel}
+            style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+          >Cancel</button>
+          <button onClick={handleConfirm} disabled={!canConfirm}
+            style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: canConfirm ? 'var(--danger)' : 'var(--border)', color: canConfirm ? '#fff' : 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: canConfirm ? 'pointer' : 'default', fontFamily: 'var(--font-body)' }}
+          >Close Out Application</button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── Interview Setup Modal ─────────────────────────────────────────────────────
+function InterviewSetupModal({
+  companyName, onConfirm, onSkip
+}: {
+  companyName: string
+  onConfirm: (interviewDate: string, round: SubStage) => void
+  onSkip: () => void
+}) {
+  const [date, setDate] = useState('')
+  const [round, setRound] = useState<SubStage>('Round 1')
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid var(--border)',
+    background: 'var(--surface-2)', color: 'var(--text)', fontFamily: 'var(--font-body)',
+    fontSize: 13, outline: 'none', boxSizing: 'border-box',
+  }
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={e => { if (e.target === e.currentTarget) onSkip() }}
+    >
+      <motion.div initial={{ scale: 0.96, y: 12 }} animate={{ scale: 1, y: 0 }}
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 28, width: '100%', maxWidth: 380, position: 'relative' }}
+      >
+        <button onClick={onSkip} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
+          <X size={18} />
+        </button>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Interview Details</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{companyName} — moving to Interviewing</div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Round</label>
+            <select value={round} onChange={e => setRound(e.target.value as SubStage)} style={{ ...inp, cursor: 'pointer' }}>
+              {(['Round 1', 'Round 2', 'Round 3', 'Round 4+'] as SubStage[]).map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Interview Date & Time</label>
+            <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} style={inp} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+          <button onClick={onSkip}
+            style={{ flex: 1, padding: '9px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+          >Skip for now</button>
+          <button onClick={() => onConfirm(date, round)}
+            style={{ flex: 2, padding: '9px', borderRadius: 8, border: 'none', background: 'var(--brand)', color: '#08090D', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+          >Save & Continue</button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ─── Tracker View ──────────────────────────────────────────────────────────────
 function TrackerView({
   applications, onUpdate, onSelect, onQuickAdd
@@ -434,6 +679,8 @@ function TrackerView({
   const [stageFilter, setStageFilter] = useState<MainStage | 'all'>('all')
   const [sortField, setSortField] = useState<'company' | 'stage' | 'appliedOn' | 'salary'>('appliedOn')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [closeOutApp, setCloseOutApp] = useState<Application | null>(null)
+  const [interviewSetup, setInterviewSetup] = useState<{ appId: number; company: string } | null>(null)
 
   const inPlay = useMemo(() =>
     applications.filter(a => IN_PLAY_STAGES.includes(a.stage)),
@@ -466,8 +713,27 @@ function TrackerView({
   }
 
   function updateStage(id: number, stage: MainStage, subStage?: SubStage) {
+    const app = applications.find(a => a.id === id)
     const updated = applications.map(a => a.id === id ? { ...a, stage, subStage } : a)
     onUpdate(updated)
+    // Prompt for interview details when first moving to Interviewing
+    if (stage === 'Interviewing' && app?.stage !== 'Interviewing') {
+      setInterviewSetup({ appId: id, company: app?.company ?? '' })
+    }
+  }
+
+  function handleCloseOut(updates: Partial<Application>) {
+    const updated = applications.map(a => a.id === closeOutApp!.id ? { ...a, ...updates } : a)
+    onUpdate(updated)
+    setCloseOutApp(null)
+  }
+
+  function handleInterviewSetup(interviewDate: string, round: SubStage) {
+    const updated = applications.map(a =>
+      a.id === interviewSetup!.appId ? { ...a, interviewDate, subStage: round } : a
+    )
+    onUpdate(updated)
+    setInterviewSetup(null)
   }
 
   const SortIcon = ({ field }: { field: typeof sortField }) =>
@@ -548,7 +814,7 @@ function TrackerView({
         {/* Table header */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '2fr 1.5fr 1.4fr 0.9fr 0.9fr 0.8fr',
+          gridTemplateColumns: '2fr 1.4fr 1.4fr 0.8fr 0.8fr 0.6fr 80px',
           padding: '10px 16px',
           borderBottom: '1px solid var(--border)',
           background: 'var(--surface-2)',
@@ -560,6 +826,7 @@ function TrackerView({
             { label: 'Pay', field: 'salary' as const },
             { label: 'Applied', field: 'appliedOn' as const },
             { label: 'Priority', field: null },
+            { label: '', field: null },
           ].map(({ label, field }) => (
             <button
               key={label}
@@ -592,7 +859,7 @@ function TrackerView({
               transition={{ delay: i * 0.03 }}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 1.5fr 1.4fr 0.9fr 0.9fr 0.8fr',
+                gridTemplateColumns: '2fr 1.4fr 1.4fr 0.8fr 0.8fr 0.6fr 80px',
                 padding: '13px 16px',
                 borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
                 alignItems: 'center',
@@ -635,10 +902,48 @@ function TrackerView({
                   {app.priority}
                 </span>
               </div>
+              {/* Close Out button */}
+              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setCloseOutApp(app)}
+                  style={{
+                    padding: '4px 9px', borderRadius: 6,
+                    border: '1px solid rgba(248,113,113,0.35)',
+                    background: 'rgba(248,113,113,0.08)',
+                    color: 'var(--danger)', fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'var(--font-body)',
+                    display: 'flex', alignItems: 'center', gap: 3,
+                  }}
+                >
+                  <X size={10} /> Close
+                </button>
+              </div>
             </motion.div>
           ))
         )}
       </div>
+
+      {/* Close Out Modal */}
+      <AnimatePresence>
+        {closeOutApp && (
+          <CloseOutModal
+            app={closeOutApp}
+            onConfirm={handleCloseOut}
+            onCancel={() => setCloseOutApp(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Interview Setup Modal */}
+      <AnimatePresence>
+        {interviewSetup && (
+          <InterviewSetupModal
+            companyName={interviewSetup.company}
+            onConfirm={handleInterviewSetup}
+            onSkip={() => setInterviewSetup(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -672,6 +977,9 @@ function InboxView({
   const declinedItems = queue.filter(q =>
     q.emailType === 'rejection' && q.status !== 'dismissed'
   )
+
+  // Tab selection
+  const [tab, setTab] = useState<'submitted' | 'next-steps' | 'declined'>('submitted')
 
   // Add-form visibility
   const [showAddNextSteps, setShowAddNextSteps] = useState(false)
@@ -831,11 +1139,39 @@ function InboxView({
         ))}
       </div>
 
-      {/* ── SUBMITTED ── */}
-      <div style={{
+      {/* ── Tabs ── */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+        {([
+          { id: 'submitted',  label: 'Submitted',       count: submittedApps.length,  color: 'var(--blue)' },
+          { id: 'next-steps', label: 'Next Steps',      count: nextStepsItems.length, color: 'var(--gold)' },
+          { id: 'declined',   label: 'Declined',        count: declinedItems.length,  color: 'var(--danger)' },
+        ] as const).map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{
+              padding: '10px 20px', border: 'none', background: 'transparent',
+              borderBottom: tab === t.id ? `2px solid ${t.color}` : '2px solid transparent',
+              color: tab === t.id ? t.color : 'var(--muted)',
+              fontSize: 13, fontWeight: tab === t.id ? 700 : 400,
+              cursor: 'pointer', fontFamily: 'var(--font-body)',
+              display: 'flex', alignItems: 'center', gap: 7,
+              transition: 'all 0.15s', marginBottom: -1,
+            }}
+          >
+            {t.label}
+            <span style={{
+              background: tab === t.id ? `${t.color}25` : 'rgba(255,255,255,0.06)',
+              color: tab === t.id ? t.color : 'var(--muted)',
+              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99,
+            }}>{t.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── SUBMITTED tab ── */}
+      {tab === 'submitted' && <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderLeft: '3px solid var(--blue)', borderRadius: 12,
-        padding: '20px 20px', marginBottom: 14,
+        padding: '20px 20px',
       }}>
         <SectionHeader
           label="Submitted"
@@ -878,13 +1214,13 @@ function InboxView({
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
-      {/* ── NEXT STEPS ── */}
-      <div style={{
+      {/* ── NEXT STEPS tab ── */}
+      {tab === 'next-steps' && <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderLeft: '3px solid var(--gold)', borderRadius: 12,
-        padding: '20px 20px', marginBottom: 14,
+        padding: '20px 20px',
       }}>
         <SectionHeader
           label="Next Steps"
@@ -1022,10 +1358,10 @@ function InboxView({
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
-      {/* ── PRE-INTERVIEW DECLINES ── */}
-      <div style={{
+      {/* ── DECLINED tab ── */}
+      {tab === 'declined' && <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderLeft: '3px solid var(--danger)', borderRadius: 12,
         padding: '20px 20px',
@@ -1122,7 +1458,7 @@ function InboxView({
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

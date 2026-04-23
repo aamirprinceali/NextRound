@@ -87,5 +87,37 @@ Proactive coaching based on real data patterns. Not a chatbot — a coach that k
 
 ---
 
-*Last updated: 2026-04-21*
+## AI Buddy Vision (confirmed — 2026-04-23)
+AI assistant woven throughout the app, powered by Claude API. Not a chatbot — a coach that knows your full job hunt data.
+
+**Where it lives:**
+- **Resume Vault** — helps tailor your resume to a specific job from the Active section. Upload resume → select job → AI generates a tailored version.
+- **Interviews page** — generates interview prep questions + answers based on your resume AND the specific job description. "What would they ask me for this role, and how should I answer given my background?"
+- **Rejections page** — analyzes your drop-off patterns. "You're losing 80% of apps at the recruiter screen — here's what that usually means and what to try."
+- **Dashboard (weekly digest)** — proactive pattern alerts and weekly summary
+
+**Build order note:** Wire the UI stubs first (Phase 9, 15, 17). The AI calls come after Resume Vault is built (needs resume text to be useful). Don't block UI progress waiting for AI.
+
+## Interview Tab Simplification (confirmed — 2026-04-23)
+Simplify the Interview tab on each job app detail panel:
+- Remove the Q&A / prep questions section from the job tab entirely
+- The Interview tab should only have: interview date, round, prep status toggle ("Needs Prep")
+- "Needs Prep" toggled on → app appears in Interviews section prep list
+- AI generates the actual questions from the Interviews section when user clicks "Prep" on that app
+- This keeps the job app detail clean and pushes all prep work to the dedicated Interview Prep page
+
+## Contacts Section (confirmed — build Phase 4)
+Full standalone Contacts page. Key behaviors:
+- Auto-populated when an app moves from Next Steps to Active (pulls contact info from the queue item)
+- Contact tab on each job app: shows added contacts with name/title/email. Clean list with + button to add more. Clicking + opens a contact form modal.
+- When closing out an app: "Keep this contact?" prompt → if yes, contact saved to main Contacts page
+- Contacts page: search by name, company, role. Contact age shown ("Added 47 days ago").
+- Contact survives after the job app is archived
+
+## Pipeline Page Note (confirmed — 2026-04-23)
+Pipeline feels thin and hard to read right now. Will become more useful once email integration (Phase 13) fills it automatically with many apps. Redesign planned at that point. No changes before then.
+
+---
+
+*Last updated: 2026-04-23*
 *Rule: Update this file at end of every session when new ideas are confirmed.*

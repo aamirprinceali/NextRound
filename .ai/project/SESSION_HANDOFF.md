@@ -1,5 +1,5 @@
 # Prospect — Session Handoff
-**Last updated: 2026-04-21**
+**Last updated: 2026-04-23**
 
 ---
 
@@ -45,7 +45,9 @@ Everything below is **built and working** as of this session:
 | Lock In button | ✅ Jade green, wired (timer modal TBD) |
 | Sidebar | ✅ Hunt session banner, "X apps sent" counter, weekly goal progress bar |
 
-**This session:** Inbox rebuilt as 3-bucket triage (Submitted / Next Steps / Pre-Interview Declines). Funnel bar shows all-time pipeline totals. "In Play" renamed to "Active" everywhere. "Move to Active →" on Next Steps cards auto-picks correct stage from email type and pulls contact into recruiter field.
+**Session 2026-04-21:** Inbox rebuilt as 3-bucket triage, funnel bar, "In Play" → "Active" everywhere, Move to Active flow.
+
+**Session 2026-04-23:** Close-out button on every Active row (red "✕ Close"). CloseOutModal with stage reached, Rejected/Ghosted/Withdrew reasons, optional note. InterviewSetupModal fires when any app is moved to Interviewing (pick round + date). Quick Add shows interview date + round when Interviewing selected. Inbox sections converted to horizontal tabs (Submitted | Next Steps | Declined). Rejection count badge removed from sidebar. AI Buddy, Contacts section enhancements, and Interview tab simplification added to IDEAS_BACKLOG.
 
 ---
 
