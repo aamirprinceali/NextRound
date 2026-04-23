@@ -11,7 +11,7 @@ A complete job hunting OS/CRM. You live here during your entire job search. The 
 cd ~/Desktop/dev/NextRound
 npm run dev
 ```
-Then open: http://localhost:5175
+Then open: http://localhost:5174
 
 ## Stack
 - React + TypeScript + Vite (frontend only, no backend yet)

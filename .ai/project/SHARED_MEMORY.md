@@ -5,7 +5,7 @@
 - **Name:** Prospect (was NextRound)
 - **Tagline:** Job Hunt HQ
 - **Branch:** `prospect/redesign`
-- **Run:** `cd ~/Desktop/dev/NextRound && npm run dev` → http://localhost:5173
+- **Run:** `cd ~/Desktop/dev/NextRound && npm run dev` → http://localhost:5174
 - **GitHub:** https://github.com/aamirprinceali/NextRound.git
 
 ## Vision (3 layers)

@@ -9,7 +9,7 @@
 cd ~/Desktop/dev/NextRound
 npm run dev
 ```
-Open: **http://localhost:5173**
+Open: **http://localhost:5174**
 Branch: `prospect/redesign`
 
 ---
