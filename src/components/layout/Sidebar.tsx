@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Inbox, Kanban, List, CalendarDays,
   BarChart2, XCircle, FileText, Archive, Settings,
-  Zap, Target, ChevronRight, TrendingUp, Calendar
+  Zap, Target, ChevronRight, TrendingUp, Calendar, CheckSquare
 } from 'lucide-react'
 import type { View, HuntSession } from '../../types'
 import { huntDaysElapsed } from '../../utils/dates'
@@ -24,6 +24,7 @@ const NAV_MAIN: NavItem[] = [
 ]
 
 const NAV_TOOLS: NavItem[] = [
+  { id: 'tasks',       label: 'Tasks',          icon: CheckSquare },
   { id: 'interviews',  label: 'Interviews',     icon: CalendarDays },
   { id: 'calendar',    label: 'Calendar',       icon: Calendar },
   { id: 'stats',       label: 'Stats',          icon: BarChart2 },
@@ -37,10 +38,11 @@ type SidebarProps = {
   currentView: View
   setView: (v: View) => void
   huntSession: HuntSession | null
-  appliedCount: number     // Pending queue badge count
-  totalApplied: number     // All-time total apps submitted
-  weekApps: number         // Apps submitted this week
+  appliedCount: number
+  totalApplied: number
+  weekApps: number
   rejectionCount: number
+  openTaskCount: number
   onStartHunt: () => void
   onLockInOpen: () => void
   lockInActive: boolean
@@ -113,7 +115,7 @@ function NavLink({
 // ─── Sidebar ───────────────────────────────────────────────────────────────────
 export function Sidebar({
   currentView, setView, huntSession,
-  appliedCount, totalApplied, weekApps, rejectionCount,
+  appliedCount, totalApplied, weekApps, rejectionCount, openTaskCount,
   onStartHunt, onLockInOpen, lockInActive
 }: SidebarProps) {
   const daysActive = huntSession ? huntDaysElapsed(huntSession.startedAt) : 0
@@ -305,6 +307,7 @@ export function Sidebar({
               item={item}
               active={currentView === item.id}
               onClick={() => setView(item.id)}
+              badge={item.id === 'tasks' && openTaskCount > 0 ? openTaskCount : undefined}
             />
           ))}
         </div>

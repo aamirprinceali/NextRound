@@ -114,6 +114,13 @@ Full standalone Contacts page. Key behaviors:
 - Contacts page: search by name, company, role. Contact age shown ("Added 47 days ago").
 - Contact survives after the job app is archived
 
+## Scheduling / Availability Email Automation (save for later — confirmed 2026-04-24)
+When a recruiter asks "what's your availability?", Prospect should let the user send their availability directly from the app — potentially auto-sending via Gmail once email integration is live. Pairs with the email templates already built. Full vision:
+- One-click "Send Availability" from the app's Email tab (template already exists)
+- Eventually: when Gmail is connected, send directly without copy/paste
+- Future: auto-detect "please share your availability" type emails → surface in Next Steps queue with a pre-filled availability reply ready to send
+- Build after Phase 13 (email integration)
+
 ## Pipeline Page Note (confirmed — 2026-04-23)
 Pipeline feels thin and hard to read right now. Will become more useful once email integration (Phase 13) fills it automatically with many apps. Redesign planned at that point. No changes before then.
 

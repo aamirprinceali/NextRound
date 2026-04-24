@@ -3,9 +3,9 @@ import { motion } from 'framer-motion'
 import {
   Target, ChevronRight, Clock,
   CalendarDays, Bell, ArrowRight, Flame, TrendingUp,
-  Zap, BookOpen
+  Zap, BookOpen, CheckSquare
 } from 'lucide-react'
-import type { Application, QueuedApp, HuntSession } from '../../types'
+import type { Application, QueuedApp, HuntSession, Task } from '../../types'
 import { STAGE_CONFIG, STAGE_ORDER } from '../../utils/stages'
 import { daysAgo, daysUntil, formatDate, formatDateTime, isSameWeek, huntDaysElapsed, getTodayIso } from '../../utils/dates'
 
@@ -160,12 +160,13 @@ type DashboardProps = {
   applications: Application[]
   queue: QueuedApp[]
   huntSession: HuntSession | null
+  tasks: Task[]
   onStartHunt: () => void
   onViewChange: (view: string, appId?: number) => void
 }
 
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
-export function Dashboard({ applications, queue, huntSession, onStartHunt, onViewChange }: DashboardProps) {
+export function Dashboard({ applications, queue, huntSession, tasks, onStartHunt, onViewChange }: DashboardProps) {
   const today = getTodayIso()
   const weeklyGoal = huntSession?.weeklyGoal ?? 0
   const daysIn = huntSession ? huntDaysElapsed(huntSession.startedAt) : 0
@@ -229,6 +230,32 @@ export function Dashboard({ applications, queue, huntSession, onStartHunt, onVie
   const focusItems = useMemo(() => {
     const items: { icon: React.ElementType; color: string; text: string; action: () => void }[] = []
 
+    // Overdue tasks first
+    const overdueTasks = tasks
+      .filter(t => !t.done && t.dueDate && t.dueDate < today)
+      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+      .slice(0, 2)
+    for (const task of overdueTasks) {
+      items.push({
+        icon: CheckSquare,
+        color: 'var(--danger)',
+        text: `${task.title} — overdue`,
+        action: () => onViewChange('tasks'),
+      })
+    }
+
+    // Today's tasks
+    const todayTasks = tasks.filter(t => !t.done && t.dueDate === today).slice(0, 2)
+    for (const task of todayTasks) {
+      items.push({
+        icon: CheckSquare,
+        color: 'var(--gold)',
+        text: `${task.title} — due today`,
+        action: () => onViewChange('tasks'),
+      })
+    }
+
+    // Upcoming interviews
     const soonInterviews = applications.filter(a =>
       a.interviewDate && daysUntil(a.interviewDate) <= 1 && daysUntil(a.interviewDate) >= 0
     )
@@ -258,13 +285,13 @@ export function Dashboard({ applications, queue, huntSession, onStartHunt, onVie
       items.push({
         icon: Bell,
         color: 'var(--blue)',
-        text: `${newQueue} new application${newQueue > 1 ? 's' : ''} in your Applied queue`,
+        text: `${newQueue} new application${newQueue > 1 ? 's' : ''} in your inbox`,
         action: () => onViewChange('applied'),
       })
     }
 
-    return items.slice(0, 4)
-  }, [applications, queue, today, urgentFollowups, onViewChange])
+    return items.slice(0, 5)
+  }, [applications, queue, tasks, today, urgentFollowups, onViewChange])
 
   const responseRate = useMemo(() => {
     const totalApplied = applications.length + queue.length
@@ -544,7 +571,7 @@ export function Dashboard({ applications, queue, huntSession, onStartHunt, onVie
               onClick={() => onViewChange('tracker')}
               style={{ fontSize: 12, color: 'var(--brand)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-body)' }}
             >
-              View In Play <ChevronRight size={12} />
+              View Active <ChevronRight size={12} />
             </button>
           </div>
           <div style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>

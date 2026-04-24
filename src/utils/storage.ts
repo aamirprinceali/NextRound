@@ -1,6 +1,6 @@
 import type {
   Application, QueuedApp, HuntSession, UserSettings,
-  CareerStats, MainStage
+  CareerStats, MainStage, Task
 } from '../types'
 import { STORAGE_KEYS } from '../types'
 import { LEGACY_TO_MAIN } from './stages'
@@ -154,4 +154,13 @@ export function loadCareerStats(): CareerStats {
 
 export function saveCareerStats(stats: CareerStats): void {
   safeSet(STORAGE_KEYS.CAREER_STATS, stats)
+}
+
+// ─── Tasks ─────────────────────────────────────────────────────────────────────
+export function loadTasks(): Task[] {
+  return safeGet<Task[]>(STORAGE_KEYS.TASKS, [])
+}
+
+export function saveTasks(tasks: Task[]): void {
+  safeSet(STORAGE_KEYS.TASKS, tasks)
 }

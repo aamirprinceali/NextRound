@@ -1,5 +1,5 @@
 # Prospect — Session Handoff
-**Last updated: 2026-04-23**
+**Last updated: 2026-04-24**
 
 ---
 
@@ -47,7 +47,9 @@ Everything below is **built and working** as of this session:
 
 **Session 2026-04-21:** Inbox rebuilt as 3-bucket triage, funnel bar, "In Play" → "Active" everywhere, Move to Active flow.
 
-**Session 2026-04-23:** Close-out button on every Active row (red "✕ Close"). CloseOutModal with stage reached, Rejected/Ghosted/Withdrew reasons, optional note. InterviewSetupModal fires when any app is moved to Interviewing (pick round + date). Quick Add shows interview date + round when Interviewing selected. Inbox sections converted to horizontal tabs (Submitted | Next Steps | Declined). Rejection count badge removed from sidebar. AI Buddy, Contacts section enhancements, and Interview tab simplification added to IDEAS_BACKLOG.
+**Session 2026-04-23:** Close-out button on every Active row (red "✕ Close"). CloseOutModal with stage reached, Rejected/Ghosted/Withdrew reasons, optional note. InterviewSetupModal fires when any app is moved to Interviewing (pick round + date). Quick Add shows interview date + round when Interviewing selected. Inbox sections converted to horizontal tabs (Submitted | Next Steps | Declined). Rejection count badge removed from sidebar.
+
+**Session 2026-04-24:** Full Tasks page built (Phase 5 complete). Tasks nav in sidebar with open/overdue badge. Auto-task engine: follow-up task created 7 days after each Applied app, interview prep task created day before any interview date. Dashboard Today's Focus now shows overdue + today tasks first. Manual tasks: Add Task form with title, due date, linked app, note. Task rows show auto badge, company badge, overdue warning. Completed tasks collapsible. Scheduling/availability automation idea saved to IDEAS_BACKLOG.
 
 ---
 
